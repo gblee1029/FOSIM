@@ -1,0 +1,2 @@
+cycle_id,product_model,process_id,screw_position,joint_type,target_speed,target_torque,clamp_rising_time,torque_hold_time,seating_sensitivity,speed_adjust_time
+CYCLE-NORMAL-001,MODEL-A,P10,S01,HARD,820,1.2,100,30,50,25

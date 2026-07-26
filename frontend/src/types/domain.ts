@@ -57,9 +57,14 @@ export type Analysis = {
   diagnosis: Diagnosis;
 };
 
-export type ImportResponse = {
+export type AnalyzedCycle = {
   cycle: ImportedCycle;
   analysis: Analysis;
+};
+
+export type ImportResponse = AnalyzedCycle & {
+  cycles?: AnalyzedCycle[];
+  active_cycle_id?: string;
 };
 
 export type SimulationResult = {

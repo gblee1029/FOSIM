@@ -48,6 +48,14 @@ const settingsSource = readFileSync(
   new URL("../src/components/SettingsPanel.tsx", import.meta.url),
   "utf8",
 );
+const importPanelSource = readFileSync(
+  new URL("../src/components/ImportPanel.tsx", import.meta.url),
+  "utf8",
+);
+const cycleSelectorSource = readFileSync(
+  new URL("../src/components/workspace/CycleSelector.tsx", import.meta.url),
+  "utf8",
+);
 const timelineSource = readFileSync(
   new URL("../src/components/workspace/SegmentTimeline.tsx", import.meta.url),
   "utf8",
@@ -69,6 +77,11 @@ assert.match(appSource, /Right control rail/);
 assert.match(candidateSource, /layout\?: "grid" \| "rail"/);
 assert.match(settingsSource, /prediction refresh/);
 assert.match(settingsSource, /Updates are recalculated automatically/);
+assert.match(importPanelSource, /multiple/);
+assert.match(importPanelSource, /waveformCsvs/);
+assert.match(cycleSelectorSource, /CycleSelector/);
+assert.match(hookSource, /activeCycleId/);
+assert.match(hookSource, /selectCycle/);
 assert.match(timelineSource, /SegmentTimeline/);
 assert.match(notesSource, /SimulationNotes/);
 

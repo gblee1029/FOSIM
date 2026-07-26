@@ -6,6 +6,7 @@ import { FeatureTable } from "./components/FeatureTable";
 import { ImportPanel } from "./components/ImportPanel";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { WaveformChart } from "./components/WaveformChart";
+import { CycleSelector } from "./components/workspace/CycleSelector";
 import { OverviewTile } from "./components/workspace/OverviewTile";
 import { SegmentTimeline } from "./components/workspace/SegmentTimeline";
 import { SimulationNotes } from "./components/workspace/SimulationNotes";
@@ -19,6 +20,8 @@ import { settingsSignature } from "./lib/liveSimulation";
 function App() {
   const {
     data,
+    availableCycles,
+    activeCycleId,
     candidateSettings,
     simulation,
     optimization,
@@ -37,6 +40,7 @@ function App() {
     handleSimulate,
     handleOptimize,
     handleSelectCandidate,
+    selectCycle,
     updateCandidateSettings,
     exportSimulation,
   } = useFasteningWorkspace();
@@ -76,6 +80,9 @@ function App() {
               Station overview
             </div>
             <ImportPanel loading={loading} onImport={handleImport} onLoadSample={handleLoadSample} />
+            {availableCycles.length > 1 && (
+              <CycleSelector cycles={availableCycles} activeCycleId={activeCycleId} onSelect={selectCycle} />
+            )}
             {data?.analysis.diagnosis && <DiagnosisPanel diagnosis={data.analysis.diagnosis} />}
             {simulation && <SimulationNotes simulation={simulation} />}
           </aside>

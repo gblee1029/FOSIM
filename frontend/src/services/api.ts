@@ -27,10 +27,10 @@ export function loadSampleCycle(): Promise<ImportResponse> {
   return request<ImportResponse>("/sample/cycle");
 }
 
-export function importCsv(settingsCsv: string, waveformCsv: string): Promise<ImportResponse> {
+export function importCsv(settingsCsv: string, waveformCsvs: string[]): Promise<ImportResponse> {
   return request<ImportResponse>("/import/csv", {
     method: "POST",
-    body: JSON.stringify({ settings_csv: settingsCsv, waveform_csv: waveformCsv }),
+    body: JSON.stringify({ settings_csv: settingsCsv, waveform_csvs: waveformCsvs }),
   });
 }
 

@@ -5,13 +5,13 @@ from typing import Any
 
 import pandas as pd
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from app.db.database import get_session
 from app.db.models import AnalysisRecord, CycleRecord, OptimizationRecord, SettingsRecord, SimulationRecord
 from app.services.diagnosis.rules import diagnose
 from app.services.feature_extraction.features import extract_features
-from app.services.import_service.csv_import import import_csv_pair
+from app.services.import_service.csv_import import ImportedCycle, import_csv_batch
 from app.services.import_service.sample_data import synthetic_settings, synthetic_waveform
 from app.services.optimization.optimizer import OptimizationObjectives, optimize_candidates
 from app.services.segmentation.segments import detect_segments
@@ -23,7 +23,16 @@ router = APIRouter()
 
 class CsvImportRequest(BaseModel):
     settings_csv: str
-    waveform_csv: str
+    waveform_csv: str | None = None
+    waveform_csvs: list[str] | None = None
+
+    def waveform_contents(self) -> list[str]:
+        contents: list[str] = []
+        if self.waveform_csv:
+            contents.append(self.waveform_csv)
+        if self.waveform_csvs:
+            contents.extend(self.waveform_csvs)
+        return contents
 
 
 class SimulationRequest(BaseModel):
@@ -48,13 +57,13 @@ def health() -> dict[str, str]:
 def sample_cycle() -> dict[str, Any]:
     settings_csv = synthetic_settings().to_csv(index=False)
     waveform_csv = synthetic_waveform().to_csv(index=False)
-    return _analyze_import(settings_csv, waveform_csv)
+    return _analyze_import(settings_csv, [waveform_csv])
 
 
 @router.post("/import/csv")
 def import_csv(request: CsvImportRequest) -> dict[str, Any]:
     try:
-        return _analyze_import(request.settings_csv, request.waveform_csv)
+        return _analyze_import(request.settings_csv, request.waveform_contents())
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
@@ -84,12 +93,23 @@ def run_optimization(request: OptimizationRequest) -> dict[str, Any]:
     return result
 
 
-def _analyze_import(settings_csv: str, waveform_csv: str) -> dict[str, Any]:
-    imported = import_csv_pair(settings_csv, waveform_csv)
+def _analyze_import(settings_csv: str, waveform_csvs: list[str]) -> dict[str, Any]:
+    imported_cycles = import_csv_batch(settings_csv, waveform_csvs)
+    analyzed_cycles = [_analyze_cycle(imported) for imported in imported_cycles]
+    response = {
+        **analyzed_cycles[0],
+        "cycles": analyzed_cycles,
+        "active_cycle_id": analyzed_cycles[0]["cycle"]["cycle_id"],
+    }
+    _store_import(response)
+    return response
+
+
+def _analyze_cycle(imported: ImportedCycle) -> dict[str, Any]:
     segments = detect_segments(imported.waveform, imported.settings)
     features = extract_features(imported.waveform, segments, imported.settings)
     diagnosis = diagnose(features)
-    response = {
+    return {
         "cycle": imported.to_dict(),
         "analysis": {
             "segments": segments.to_dict(),
@@ -97,14 +117,18 @@ def _analyze_import(settings_csv: str, waveform_csv: str) -> dict[str, Any]:
             "diagnosis": diagnosis.to_dict(),
         },
     }
-    _store_import(response)
-    return response
 
 
 def _store_import(payload: dict[str, Any]) -> None:
-    cycle = payload["cycle"]
+    entries = payload.get("cycles") or [{"cycle": payload["cycle"], "analysis": payload["analysis"]}]
+    for entry in entries:
+        _store_import_entry(entry)
+
+
+def _store_import_entry(entry: dict[str, Any]) -> None:
+    cycle = entry["cycle"]
     settings = cycle["settings"]
-    analysis = payload["analysis"]
+    analysis = entry["analysis"]
     session = get_session()
     try:
         session.add(

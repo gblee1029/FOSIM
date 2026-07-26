@@ -49,41 +49,47 @@ class ImportedCycle:
 
 
 def import_csv_pair(settings_csv: str, waveform_csv: str) -> ImportedCycle:
+    return import_csv_batch(settings_csv, [waveform_csv])[0]
+
+
+def import_csv_batch(settings_csv: str, waveform_csvs: list[str]) -> list[ImportedCycle]:
+    if not waveform_csvs:
+        raise ValueError("At least one waveform CSV is required.")
+
     settings_frame = _read_csv(settings_csv, "settings")
-    waveform_frame = _read_csv(waveform_csv, "waveform")
+    waveform_frames = [_read_csv(content, f"waveform[{index}]") for index, content in enumerate(waveform_csvs)]
     issues = _validate_columns(settings_frame, REQUIRED_SETTINGS_COLUMNS, "settings")
-    issues.extend(_validate_columns(waveform_frame, REQUIRED_WAVEFORM_COLUMNS, "waveform"))
+    for index, frame in enumerate(waveform_frames):
+        issues.extend(_validate_columns(frame, REQUIRED_WAVEFORM_COLUMNS, f"waveform[{index}]"))
     if issues:
         raise ValueError("; ".join(issue.message for issue in issues if issue.severity == "error"))
 
-    settings_row = settings_frame.iloc[0].to_dict()
-    settings = FasteningSettings.from_mapping(settings_row)
-    cycle_id = str(settings_row["cycle_id"])
-    if set(waveform_frame["cycle_id"].astype(str).unique()) != {cycle_id}:
-        issues.append(
-            ValidationIssue(
-                field="cycle_id",
-                message="Settings cycle_id and waveform cycle_id do not match exactly.",
+    waveform_frame = pd.concat(waveform_frames, ignore_index=True)
+    imported_cycles: list[ImportedCycle] = []
+    for cycle_id in _ordered_unique(waveform_frame["cycle_id"]):
+        settings_row, cycle_issues = _settings_row_for_cycle(settings_frame, cycle_id)
+        settings = FasteningSettings.from_mapping(settings_row)
+        cycle_waveform = waveform_frame[waveform_frame["cycle_id"].astype(str) == cycle_id].copy()
+        processed, report = preprocess_waveform(cycle_waveform)
+        cycle_issues.extend(_validate_waveform(processed))
+        metadata = {
+            "product_model": settings_row.get("product_model", ""),
+            "process_id": settings_row.get("process_id", ""),
+            "screw_position": settings_row.get("screw_position", ""),
+            "joint_type": settings_row.get("joint_type", ""),
+            "settings_cycle_id": str(settings_row.get("cycle_id", "")),
+            "preprocessing": report.to_dict(),
+        }
+        imported_cycles.append(
+            ImportedCycle(
+                cycle_id=cycle_id,
+                settings=settings,
+                waveform=processed,
+                metadata=metadata,
+                issues=cycle_issues,
             )
         )
-        raise ValueError(issues[-1].message)
-
-    processed, report = preprocess_waveform(waveform_frame)
-    issues.extend(_validate_waveform(processed))
-    metadata = {
-        "product_model": settings_row.get("product_model", ""),
-        "process_id": settings_row.get("process_id", ""),
-        "screw_position": settings_row.get("screw_position", ""),
-        "joint_type": settings_row.get("joint_type", ""),
-        "preprocessing": report.to_dict(),
-    }
-    return ImportedCycle(
-        cycle_id=cycle_id,
-        settings=settings,
-        waveform=processed,
-        metadata=metadata,
-        issues=issues,
-    )
+    return imported_cycles
 
 
 def _read_csv(content: str, label: str) -> pd.DataFrame:
@@ -108,6 +114,39 @@ def _validate_columns(
         )
         for column in missing
     ]
+
+
+def _settings_row_for_cycle(settings_frame: pd.DataFrame, cycle_id: str) -> tuple[dict[str, Any], list[ValidationIssue]]:
+    normalized = settings_frame.copy()
+    normalized["cycle_id"] = normalized["cycle_id"].astype(str)
+    exact = normalized[normalized["cycle_id"] == cycle_id]
+    if not exact.empty:
+        return exact.iloc[0].to_dict(), []
+
+    if len(normalized) == 1:
+        row = normalized.iloc[0].to_dict()
+        return row, [
+            ValidationIssue(
+                field="cycle_id",
+                message=(
+                    f"Using shared settings row '{row.get('cycle_id', '')}' "
+                    f"for waveform cycle '{cycle_id}'."
+                ),
+                severity="warning",
+            )
+        ]
+
+    raise ValueError(f"No settings row found for waveform cycle_id '{cycle_id}'.")
+
+
+def _ordered_unique(values: pd.Series) -> list[str]:
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for value in values.astype(str):
+        if value not in seen:
+            seen.add(value)
+            ordered.append(value)
+    return ordered
 
 
 def _validate_waveform(frame: pd.DataFrame) -> list[ValidationIssue]:

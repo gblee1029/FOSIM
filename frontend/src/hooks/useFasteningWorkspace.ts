@@ -4,6 +4,7 @@ import { buildOverviewStats } from "../lib/overviewStats";
 import { hasSettingChanged, settingsSignature } from "../lib/liveSimulation";
 import { importCsv, loadSampleCycle, runOptimization, runSimulation } from "../services/api";
 import type {
+  AnalyzedCycle,
   CandidateEvaluation,
   FasteningSettings,
   ImportResponse,
@@ -20,16 +21,22 @@ function sampleCandidateFrom(settings: FasteningSettings): FasteningSettings {
   };
 }
 
-function cycleSummaryFrom(data: ImportResponse | null): string {
-  if (!data) return "Sample data is loading";
-  const product = String(data.cycle.metadata.product_model ?? "Model");
-  const process = String(data.cycle.metadata.process_id ?? "Process");
-  const position = String(data.cycle.metadata.screw_position ?? "Position");
-  return `${data.cycle.cycle_id} / ${product} / ${process} / ${position}`;
+function cyclesFrom(response: ImportResponse | null): AnalyzedCycle[] {
+  if (!response) return [];
+  return response.cycles?.length ? response.cycles : [{ cycle: response.cycle, analysis: response.analysis }];
+}
+
+function cycleSummaryFrom(entry: AnalyzedCycle | undefined): string {
+  if (!entry) return "Sample data is loading";
+  const product = String(entry.cycle.metadata.product_model ?? "Model");
+  const process = String(entry.cycle.metadata.process_id ?? "Process");
+  const position = String(entry.cycle.metadata.screw_position ?? "Position");
+  return `${entry.cycle.cycle_id} / ${product} / ${process} / ${position}`;
 }
 
 export function useFasteningWorkspace() {
-  const [data, setData] = useState<ImportResponse | null>(null);
+  const [importResult, setImportResult] = useState<ImportResponse | null>(null);
+  const [activeCycleId, setActiveCycleId] = useState<string | undefined>();
   const [candidateSettings, setCandidateSettings] = useState<FasteningSettings | null>(null);
   const [simulation, setSimulation] = useState<SimulationResult | null>(null);
   const [optimization, setOptimization] = useState<OptimizationResult | null>(null);
@@ -40,14 +47,35 @@ export function useFasteningWorkspace() {
   const liveRequestId = useRef(0);
   const latestCandidateSignature = useRef("");
 
-  const currentSettings = data?.cycle.settings;
+  const availableCycles = useMemo(() => cyclesFrom(importResult), [importResult]);
+  const activeEntry = useMemo(() => {
+    if (!availableCycles.length) return undefined;
+    return availableCycles.find((entry) => entry.cycle.cycle_id === activeCycleId) ?? availableCycles[0];
+  }, [activeCycleId, availableCycles]);
+
+  const data = useMemo<ImportResponse | null>(() => {
+    if (!activeEntry) return null;
+    return {
+      ...activeEntry,
+      cycles: availableCycles,
+      active_cycle_id: activeEntry.cycle.cycle_id,
+    };
+  }, [activeEntry, availableCycles]);
+
+  const currentSettings = activeEntry?.cycle.settings;
   const predictedWaveform = simulation?.predicted_waveform;
-  const currentFeatures = data?.analysis.features;
+  const currentFeatures = activeEntry?.analysis.features;
   const predictedFeatures = simulation?.predicted_features;
+
+  const resetDerivedState = useCallback(() => {
+    setSimulation(null);
+    setOptimization(null);
+    setSelectedLabel(undefined);
+  }, []);
 
   const executeSimulation = useCallback(
     async (mode: "manual" | "live") => {
-      if (!data || !candidateSettings) return;
+      if (!activeEntry || !candidateSettings) return;
       const requestId = ++liveRequestId.current;
       const candidateSignature = settingsSignature(candidateSettings);
       latestCandidateSignature.current = candidateSignature;
@@ -58,7 +86,7 @@ export function useFasteningWorkspace() {
       }
       setError(null);
       try {
-        const response = await runSimulation(data.cycle.waveform, data.cycle.settings, candidateSettings);
+        const response = await runSimulation(activeEntry.cycle.waveform, activeEntry.cycle.settings, candidateSettings);
         if (requestId === liveRequestId.current && candidateSignature === latestCandidateSignature.current) {
           setSimulation(response);
           setSelectedLabel(undefined);
@@ -77,7 +105,7 @@ export function useFasteningWorkspace() {
         }
       }
     },
-    [candidateSettings, data],
+    [activeEntry, candidateSettings],
   );
 
   const handleLoadSample = useCallback(async () => {
@@ -85,26 +113,27 @@ export function useFasteningWorkspace() {
     setError(null);
     try {
       const response = await loadSampleCycle();
-      setData(response);
-      setCandidateSettings(sampleCandidateFrom(response.cycle.settings));
-      setSimulation(null);
-      setOptimization(null);
-      setSelectedLabel(undefined);
+      const cycles = cyclesFrom(response);
+      const first = cycles[0];
+      setImportResult(response);
+      setActiveCycleId(first?.cycle.cycle_id);
+      setCandidateSettings(first ? sampleCandidateFrom(first.cycle.settings) : null);
+      resetDerivedState();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load sample cycle.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [resetDerivedState]);
 
   useEffect(() => {
     void handleLoadSample();
   }, [handleLoadSample]);
 
   useEffect(() => {
-    if (!data || !candidateSettings) return;
+    if (!activeEntry || !candidateSettings) return;
     latestCandidateSignature.current = settingsSignature(candidateSettings);
-    if (!hasSettingChanged(data.cycle.settings, candidateSettings)) {
+    if (!hasSettingChanged(activeEntry.cycle.settings, candidateSettings)) {
       liveRequestId.current += 1;
       setSimulation(null);
       setLiveSimulating(false);
@@ -114,22 +143,23 @@ export function useFasteningWorkspace() {
       void executeSimulation("live");
     }, 350);
     return () => window.clearTimeout(timer);
-  }, [candidateSettings, data, executeSimulation]);
+  }, [activeEntry, candidateSettings, executeSimulation]);
 
-  async function handleImport(settingsCsv: string, waveformCsv: string) {
-    if (!settingsCsv || !waveformCsv) {
-      setError("Select both settings and waveform CSV files.");
+  async function handleImport(settingsCsv: string, waveformCsvs: string[]) {
+    if (!settingsCsv || !waveformCsvs.length) {
+      setError("Select settings CSV and at least one waveform CSV file.");
       return;
     }
     setLoading(true);
     setError(null);
     try {
-      const response = await importCsv(settingsCsv, waveformCsv);
-      setData(response);
-      setCandidateSettings(response.cycle.settings);
-      setSimulation(null);
-      setOptimization(null);
-      setSelectedLabel(undefined);
+      const response = await importCsv(settingsCsv, waveformCsvs);
+      const cycles = cyclesFrom(response);
+      const first = cycles[0];
+      setImportResult(response);
+      setActiveCycleId(first?.cycle.cycle_id);
+      setCandidateSettings(first?.cycle.settings ?? null);
+      resetDerivedState();
     } catch (err) {
       setError(err instanceof Error ? err.message : "CSV import failed.");
     } finally {
@@ -142,11 +172,11 @@ export function useFasteningWorkspace() {
   }
 
   async function handleOptimize() {
-    if (!data) return;
+    if (!activeEntry) return;
     setLoading(true);
     setError(null);
     try {
-      const response = await runOptimization(data.cycle.waveform, data.cycle.settings);
+      const response = await runOptimization(activeEntry.cycle.waveform, activeEntry.cycle.settings);
       setOptimization(response);
       const first = response.recommended[0];
       if (first) {
@@ -165,6 +195,16 @@ export function useFasteningWorkspace() {
     setSimulation(candidate.simulation);
     setCandidateSettings(candidate.settings);
     setSelectedLabel(candidate.label);
+  }
+
+  function selectCycle(cycleId: string) {
+    const next = availableCycles.find((entry) => entry.cycle.cycle_id === cycleId);
+    if (!next) return;
+    liveRequestId.current += 1;
+    setActiveCycleId(cycleId);
+    setCandidateSettings(next.cycle.settings);
+    setError(null);
+    resetDerivedState();
   }
 
   function updateCandidateSettings(settings: FasteningSettings) {
@@ -188,10 +228,12 @@ export function useFasteningWorkspace() {
     () => buildOverviewStats(currentFeatures, predictedFeatures),
     [currentFeatures, predictedFeatures],
   );
-  const cycleSummary = useMemo(() => cycleSummaryFrom(data), [data]);
+  const cycleSummary = useMemo(() => cycleSummaryFrom(activeEntry), [activeEntry]);
 
   return {
     data,
+    availableCycles,
+    activeCycleId: activeEntry?.cycle.cycle_id,
     candidateSettings,
     simulation,
     optimization,
@@ -210,6 +252,7 @@ export function useFasteningWorkspace() {
     handleSimulate,
     handleOptimize,
     handleSelectCandidate,
+    selectCycle,
     updateCandidateSettings,
     exportSimulation,
   };

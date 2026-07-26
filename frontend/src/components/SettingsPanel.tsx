@@ -86,7 +86,8 @@ export function SettingsPanel({ current, candidate, onChange, onSimulate, loadin
           </div>
         ))}
         <p className="text-xs leading-5 text-steel">
-          값이 바뀌면 자동으로 예상 파형을 다시 계산합니다. 버튼은 즉시 재계산이 필요할 때 사용하세요.
+          Updates are recalculated automatically after each adjustment. Use the button when you want an immediate
+          refresh.
         </p>
         <Button className="w-full" disabled={loading} onClick={onSimulate} type="button">
           <Play size={16} />

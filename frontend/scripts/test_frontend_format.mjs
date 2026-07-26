@@ -32,6 +32,14 @@ assert.equal(clampSettingValue(999, ranges.clamp_rising_time), 250);
 assert.equal(clampSettingValue(-10, ranges.torque_hold_time), 0);
 
 const appSource = readFileSync(new URL("../src/App.tsx", import.meta.url), "utf8");
+const overviewSource = readFileSync(
+  new URL("../src/lib/overviewStats.ts", import.meta.url),
+  "utf8",
+);
+const hookSource = readFileSync(
+  new URL("../src/hooks/useFasteningWorkspace.ts", import.meta.url),
+  "utf8",
+);
 const candidateSource = readFileSync(
   new URL("../src/components/CandidateCards.tsx", import.meta.url),
   "utf8",
@@ -40,11 +48,28 @@ const settingsSource = readFileSync(
   new URL("../src/components/SettingsPanel.tsx", import.meta.url),
   "utf8",
 );
+const timelineSource = readFileSync(
+  new URL("../src/components/workspace/SegmentTimeline.tsx", import.meta.url),
+  "utf8",
+);
+const notesSource = readFileSync(
+  new URL("../src/components/workspace/SimulationNotes.tsx", import.meta.url),
+  "utf8",
+);
 
+assert.match(overviewSource, /buildOverviewStats/);
+assert.match(overviewSource, /formatNumber/);
+assert.match(overviewSource, /settingDelta/);
+assert.match(appSource, /useFasteningWorkspace/);
+assert.doesNotMatch(appSource, /const executeSimulation/);
+assert.match(hookSource, /executeSimulation/);
 assert.match(appSource, /xl:grid-cols-\[260px_minmax\(0,1fr\)_360px\]/);
 assert.match(appSource, /Station overview/);
 assert.match(appSource, /Right control rail/);
 assert.match(candidateSource, /layout\?: "grid" \| "rail"/);
-assert.match(settingsSource, /자동으로 예상 파형을 다시 계산합니다/);
+assert.match(settingsSource, /prediction refresh/);
+assert.match(settingsSource, /Updates are recalculated automatically/);
+assert.match(timelineSource, /SegmentTimeline/);
+assert.match(notesSource, /SimulationNotes/);
 
-console.log("frontend format, live simulation, and layout checks passed");
+console.log("frontend format, refactor boundaries, live simulation, and layout checks passed");

@@ -11,7 +11,8 @@
 ## Global Constraints
 
 - 스펙 원본: `docs/superpowers/specs/2026-07-29-multi-cycle-robust-optimization-design.md`
-- 하위호환: 파형 1개짜리 요청은 현재와 **동일한 결과**를 내야 한다. 기존 `backend/tests/test_api_contract.py`와 `backend/tests/test_analysis_pipeline.py`의 단언이 계속 통과해야 한다.
+- 하위호환: 파형 1개짜리 최적화 요청은 현재와 **동일한 추천 결과**를 내야 한다.
+- 응답 스키마는 예외다. Task 9에서 임포트 응답의 최상위 `cycle`/`analysis` 전개를 의도적으로 제거하므로, 그 필드를 읽던 기존 `backend/tests/test_api_contract.py` 단언 8곳은 `cycles[0]["cycle"]` 형태로 수정한다. 이는 승인된 변경이며 회귀가 아니다. `backend/tests/test_analysis_pipeline.py`는 호출 시그니처만 바뀌고 단언은 유지된다.
 - 점수 총점은 100점을 유지한다: constraint 30, torque_accuracy 15, reproducibility 20, overshoot 15, stability 15, fastening_time 3, setting_change 2.
 - 이상치 배제는 절대 조용히 일어나지 않는다. 모든 배제는 `cycle_id`와 사유를 응답에 싣는다.
 - 배제 결과가 공집합이 되면 안 된다. 전부 배제될 상황이면 전체를 포함시키고 그 사실을 경고로 남긴다.
@@ -1481,38 +1482,58 @@ git commit -m "feat: expose group summary and accept multiple optimization wavef
 **Files:**
 - Modify: `frontend/src/types/domain.ts`
 - Modify: `frontend/src/services/api.ts`
+- Create: `frontend/src/lib/optimizationBasis.ts`
 - Modify: `frontend/scripts/test_frontend_format.mjs`
 
 **Interfaces:**
 - Consumes: Task 7의 `group_summary` 응답 구조, 최적화 응답의 `cycle_count`/`gate_mode`/`confidence_grade`/`rejection_details`
-- Produces: `GroupSummary`, `SettingsGroupInfo`, `FeatureDistribution`, `ExclusionInfo`, `WaveformEnvelope` 타입. `runOptimization(waveforms: WaveformSample[][], currentSettings: FasteningSettings)`
+- Produces: `GroupSummary`, `SettingsGroupInfo`, `FeatureDistribution`, `ExclusionInfo`, `WaveformEnvelope` 타입. `runOptimization(waveforms: WaveformSample[][], currentSettings: FasteningSettings)`. `selectOptimizationWaveforms(cycles: AnalyzedCycle[], summary: GroupSummary | undefined) -> WaveformSample[][]`
 
 - [ ] **Step 1: 실패하는 테스트 작성**
 
-`frontend/scripts/test_frontend_format.mjs` 하단에 추가한다. 이 스크립트가 쓰는 단언 헬퍼 이름과 호출 규약을 파일 상단에서 확인한 뒤 동일한 스타일로 맞춘다.
+`frontend/scripts/test_frontend_format.mjs`는 `node:assert/strict`의 `assert.equal`로 `src/lib`의 **실제 함수**를 검증하는 파일이다. 같은 방식을 따른다. 리터럴을 만들어 그 리터럴을 단언하면 제품 코드를 거치지 않아 아무것도 검증하지 못하므로 금지한다.
+
+파일 상단 import 블록에 추가한다:
 
 ```javascript
-// group_summary 페이로드 형태 검증
-const groupSummary = {
-  groups: [{ key: [820, 1.2, 100, 30], settings: {}, cycle_ids: ["A", "B"], cycle_count: 2 }],
-  is_single_group: true,
-  active_group_index: 0,
-  distributions: { final_torque: { feature: "final_torque", mean: 1.2, std: 0.01, min: 1.19, max: 1.21, p05: 1.19, p95: 1.21, count: 2 } },
-  capability: { final_torque_cpk: 1.8 },
-  envelope: { time_ms: [0, 1], torque_min: [0, 1], torque_max: [0, 2], torque_median: [0, 1.5] },
-  exclusion: { included_cycle_ids: ["A"], included_count: 1, excluded: [{ cycle_id: "B", reason: "diagnosis", detail: "Torque Overshoot" }], excluded_count: 1, warnings: [] },
-  confidence_grade: "reference",
-};
+import { selectOptimizationWaveforms } from "../src/lib/optimizationBasis.ts";
+```
 
-assertEqual(groupSummary.groups[0].cycle_count, 2, "group cycle_count");
-assertEqual(groupSummary.exclusion.excluded[0].reason, "diagnosis", "exclusion reason");
-assertEqual(groupSummary.envelope.torque_min.length, groupSummary.envelope.torque_max.length, "envelope bounds align");
+파일 하단에 추가한다:
+
+```javascript
+const cycleA = {
+  cycle: { cycle_id: "A", waveform: [{ cycle_id: "A", sample_index: 0, time_ms: 0, torque: 0.1 }] },
+};
+const cycleB = {
+  cycle: { cycle_id: "B", waveform: [{ cycle_id: "B", sample_index: 0, time_ms: 0, torque: 0.2 }] },
+};
+const summaryWithExclusion = { exclusion: { included_cycle_ids: ["A"] } };
+
+const included = selectOptimizationWaveforms([cycleA, cycleB], summaryWithExclusion);
+assert.equal(included.length, 1);
+assert.equal(included[0][0].cycle_id, "A");
+
+// group_summary가 없으면 전체 사이클을 기준으로 삼는다.
+assert.equal(selectOptimizationWaveforms([cycleA, cycleB], undefined).length, 2);
+
+// 포함 목록이 비어 있으면 전체를 쓴다. 기준 집합이 공집합이면 최적화가 불가능하다.
+assert.equal(
+  selectOptimizationWaveforms([cycleA, cycleB], { exclusion: { included_cycle_ids: [] } }).length,
+  2,
+);
+
+// 포함 목록이 어떤 사이클과도 맞지 않아도 공집합을 돌려주지 않는다.
+assert.equal(
+  selectOptimizationWaveforms([cycleA, cycleB], { exclusion: { included_cycle_ids: ["Z"] } }).length,
+  2,
+);
 ```
 
 - [ ] **Step 2: 테스트가 실패하는지 확인**
 
 Run: `cd frontend; node scripts/test_frontend_format.mjs`
-Expected: FAIL — 헬퍼 이름이 다르면 `ReferenceError`. 상단 규약에 맞춰 헬퍼 호출을 고친 뒤 다시 실행해 통과시킨다.
+Expected: FAIL — `Cannot find module '../src/lib/optimizationBasis.ts'`
 
 - [ ] **Step 3: 구현**
 
@@ -1637,15 +1658,32 @@ export function runOptimization(
 }
 ```
 
-`frontend/src/hooks/useFasteningWorkspace.ts`의 `runOptimization` 호출부를 찾아 단일 파형 인자를 배열로 감싼다. 최적화 기준은 **배제되지 않은 사이클만** 넘긴다:
+`frontend/src/lib/optimizationBasis.ts`를 새로 만든다. 최적화 기준 집합을 고르는 로직이며, 어떤 경우에도 공집합을 돌려주지 않는다 — 기준이 비면 최적화 자체가 불가능하기 때문이다.
 
 ```typescript
-const includedIds = new Set(
-  importResponse?.group_summary?.exclusion.included_cycle_ids ?? [],
+import type { AnalyzedCycle, GroupSummary, WaveformSample } from "../types/domain";
+
+export function selectOptimizationWaveforms(
+  cycles: AnalyzedCycle[],
+  summary: GroupSummary | undefined,
+): WaveformSample[][] {
+  const includedIds = new Set(summary?.exclusion?.included_cycle_ids ?? []);
+  const filtered =
+    includedIds.size === 0
+      ? cycles
+      : cycles.filter((entry) => includedIds.has(entry.cycle.cycle_id));
+  const basis = filtered.length > 0 ? filtered : cycles;
+  return basis.map((entry) => entry.cycle.waveform);
+}
+```
+
+`frontend/src/hooks/useFasteningWorkspace.ts`의 `runOptimization` 호출부를 찾아 이 함수를 쓰도록 바꾼다:
+
+```typescript
+const optimizationWaveforms = selectOptimizationWaveforms(
+  importResponse?.cycles ?? [],
+  importResponse?.group_summary,
 );
-const optimizationWaveforms = (importResponse?.cycles ?? [])
-  .filter((entry) => includedIds.size === 0 || includedIds.has(entry.cycle.cycle_id))
-  .map((entry) => entry.cycle.waveform);
 ```
 
 - [ ] **Step 4: 테스트 통과 확인**
@@ -1656,7 +1694,7 @@ Expected: 스크립트 PASS, 타입 체크 및 빌드 성공
 - [ ] **Step 5: 커밋**
 
 ```bash
-git add frontend/src/types/domain.ts frontend/src/services/api.ts frontend/src/hooks/useFasteningWorkspace.ts frontend/scripts/test_frontend_format.mjs
+git add frontend/src/types/domain.ts frontend/src/services/api.ts frontend/src/lib/optimizationBasis.ts frontend/src/hooks/useFasteningWorkspace.ts frontend/scripts/test_frontend_format.mjs
 git commit -m "feat: type group summary and send cycle group to optimizer"
 ```
 

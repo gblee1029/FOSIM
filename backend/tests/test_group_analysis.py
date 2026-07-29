@@ -147,3 +147,77 @@ def test_envelope_of_empty_list_is_empty():
     envelope = compute_envelope([], sample_count=3)
     assert envelope.time_ms == []
     assert envelope.to_dict()["torque_median"] == []
+
+
+from app.services.diagnosis.rules import Diagnosis
+from app.services.group_analysis.exclusion import select_included_cycles
+
+
+def _diagnosis(severity: str, anomaly_type: str = "Normal") -> Diagnosis:
+    return Diagnosis(
+        anomaly_type=anomaly_type,
+        severity=severity,
+        confidence=0.8,
+        evidence_features=[],
+        related_parameters=[],
+        recommended_checks=[],
+        description="",
+    )
+
+
+def test_warning_severity_is_excluded():
+    result = select_included_cycles(
+        ["A", "B", "C"],
+        [_diagnosis("normal"), _diagnosis("warning", "Torque Overshoot"), _diagnosis("normal")],
+        [1.20, 1.21, 1.19],
+    )
+    assert result.included_cycle_ids == ["A", "C"]
+    assert result.excluded[0].cycle_id == "B"
+    assert "Torque Overshoot" in result.excluded[0].detail
+
+
+def test_caution_severity_is_kept():
+    result = select_included_cycles(
+        ["A", "B"],
+        [_diagnosis("normal"), _diagnosis("caution", "Early Seating Suspected")],
+        [1.20, 1.21],
+    )
+    assert result.included_cycle_ids == ["A", "B"]
+    assert result.excluded == []
+
+
+def test_statistical_outlier_is_excluded():
+    ids = [f"C{index}" for index in range(10)]
+    torques = [1.20, 1.201, 1.199, 1.202, 1.198, 1.20, 1.201, 1.199, 1.20, 2.50]
+    result = select_included_cycles(ids, [_diagnosis("normal")] * 10, torques)
+    assert "C9" not in result.included_cycle_ids
+    assert result.excluded[0].reason == "statistical_outlier"
+
+
+def test_zero_mad_skips_statistical_exclusion():
+    ids = ["A", "B", "C"]
+    result = select_included_cycles(ids, [_diagnosis("normal")] * 3, [1.2, 1.2, 1.2])
+    assert result.included_cycle_ids == ids
+    assert result.excluded == []
+
+
+def test_never_excludes_every_cycle():
+    result = select_included_cycles(
+        ["A", "B"],
+        [_diagnosis("warning"), _diagnosis("warning")],
+        [1.20, 1.21],
+    )
+    assert result.included_cycle_ids == ["A", "B"]
+    assert result.excluded == []
+    assert result.warnings != []
+
+
+def test_result_serializes_counts_and_reasons():
+    payload = select_included_cycles(
+        ["A", "B"],
+        [_diagnosis("normal"), _diagnosis("warning")],
+        [1.20, 1.21],
+    ).to_dict()
+    assert payload["included_count"] == 1
+    assert payload["excluded_count"] == 1
+    assert payload["excluded"][0]["reason"] == "diagnosis"

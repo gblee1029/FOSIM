@@ -107,3 +107,43 @@ def test_capability_with_zero_spread_is_capped():
 
 def test_capability_with_insufficient_samples_returns_zero():
     assert process_capability([1.2], 1.16, 1.24) == 0.0
+
+
+from app.services.group_analysis.statistics import compute_envelope
+
+
+def _waveform(scale: float, duration: float = 100.0) -> pd.DataFrame:
+    times = [0.0, duration / 2.0, duration]
+    return pd.DataFrame({"time_ms": times, "torque": [0.0, scale, scale]})
+
+
+def test_envelope_brackets_every_input():
+    envelope = compute_envelope([_waveform(1.0), _waveform(2.0)], sample_count=5)
+    assert len(envelope.time_ms) == 5
+    for low, high in zip(envelope.torque_min, envelope.torque_max):
+        assert low <= high
+    assert max(envelope.torque_max) >= 2.0
+    assert max(envelope.torque_min) <= 1.0
+
+
+def test_envelope_median_sits_between_bounds():
+    envelope = compute_envelope([_waveform(1.0), _waveform(2.0), _waveform(3.0)], sample_count=5)
+    for low, mid, high in zip(envelope.torque_min, envelope.torque_median, envelope.torque_max):
+        assert low <= mid <= high
+
+
+def test_envelope_time_axis_uses_median_duration():
+    envelope = compute_envelope([_waveform(1.0, 100.0), _waveform(1.0, 300.0)], sample_count=3)
+    assert envelope.time_ms[0] == 0.0
+    assert envelope.time_ms[-1] == 200.0
+
+
+def test_envelope_of_single_waveform_collapses_to_that_waveform():
+    envelope = compute_envelope([_waveform(2.0)], sample_count=3)
+    assert envelope.torque_min == envelope.torque_max
+
+
+def test_envelope_of_empty_list_is_empty():
+    envelope = compute_envelope([], sample_count=3)
+    assert envelope.time_ms == []
+    assert envelope.to_dict()["torque_median"] == []

@@ -84,7 +84,7 @@ def run_optimization(request: OptimizationRequest) -> dict[str, Any]:
     settings = FasteningSettings.from_mapping(request.current_settings)
     objectives = OptimizationObjectives.from_mapping(request.objectives)
     result = optimize_candidates(
-        waveform,
+        [waveform],
         settings,
         objectives,
         parameter_ranges=request.parameter_ranges,

@@ -32,6 +32,69 @@ class OptimizationObjectives:
         )
 
 
+WORST_CASE_GATE_LIMIT = 20
+
+
+@dataclass(frozen=True)
+class CycleEvaluation:
+    cycle_id: str
+    simulation: SimulationResult
+    violations: list[str]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "cycle_id": self.cycle_id,
+            "simulation": self.simulation.to_dict(),
+            "violations": self.violations,
+        }
+
+
+def confidence_grade(cycle_count: int) -> str:
+    if cycle_count < 5:
+        return "reference"
+    if cycle_count < WORST_CASE_GATE_LIMIT:
+        return "moderate"
+    return "statistical"
+
+
+def _gate_mode(cycle_count: int) -> str:
+    return "worst" if cycle_count < WORST_CASE_GATE_LIMIT else "p95"
+
+
+def _group_violations(
+    evaluations: list[CycleEvaluation],
+    objectives: OptimizationObjectives,
+    gate_mode: str,
+) -> list[str]:
+    if gate_mode == "worst":
+        violations: list[str] = []
+        for evaluation in evaluations:
+            violations.extend(evaluation.violations)
+        return sorted(set(violations))
+
+    features = [item.simulation.predicted_features for item in evaluations]
+    final_torques = np.asarray([f.final_torque for f in features], dtype=float)
+    overshoots = np.asarray([f.overshoot_percent for f in features], dtype=float)
+    total_times = np.asarray([f.total_time for f in features], dtype=float)
+    stabilities = np.asarray([f.waveform_stability_score for f in features], dtype=float)
+    confidences = np.asarray([item.simulation.confidence.score for item in evaluations], dtype=float)
+
+    violations = []
+    if float(np.percentile(final_torques, 5)) < objectives.target_torque_min or float(
+        np.percentile(final_torques, 95)
+    ) > objectives.target_torque_max:
+        violations.append("Predicted final torque is outside the objective range.")
+    if float(np.percentile(overshoots, 95)) > objectives.max_overshoot_percent:
+        violations.append("Predicted overshoot exceeds the objective limit.")
+    if float(np.percentile(total_times, 95)) > objectives.max_fastening_time:
+        violations.append("Predicted fastening time exceeds the objective limit.")
+    if float(np.percentile(stabilities, 5)) < objectives.min_stability_score:
+        violations.append("Predicted stability is below the objective limit.")
+    if float(np.percentile(confidences, 5)) < 0.45:
+        violations.append("Prediction confidence is below the MVP minimum.")
+    return violations
+
+
 @dataclass(frozen=True)
 class CandidateEvaluation:
     label: str
@@ -41,6 +104,9 @@ class CandidateEvaluation:
     simulation: SimulationResult
     reason: str
     warnings: list[str]
+    per_cycle: list[CycleEvaluation]
+    gate_mode: str
+    confidence_grade: str
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -51,6 +117,10 @@ class CandidateEvaluation:
             "simulation": self.simulation.to_dict(),
             "reason": self.reason,
             "warnings": self.warnings,
+            "per_cycle": [item.to_dict() for item in self.per_cycle],
+            "cycle_count": len(self.per_cycle),
+            "gate_mode": self.gate_mode,
+            "confidence_grade": self.confidence_grade,
         }
 
 
@@ -60,6 +130,10 @@ class OptimizationResult:
     rejected_count: int
     recommended: list[CandidateEvaluation]
     all_candidates: list[CandidateEvaluation]
+    rejection_details: list[dict[str, Any]]
+    cycle_count: int
+    gate_mode: str
+    confidence_grade: str
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -67,50 +141,92 @@ class OptimizationResult:
             "rejected_count": self.rejected_count,
             "recommended": [candidate.to_dict() for candidate in self.recommended],
             "all_candidates": [candidate.to_dict() for candidate in self.all_candidates],
+            "rejection_details": self.rejection_details,
+            "cycle_count": self.cycle_count,
+            "gate_mode": self.gate_mode,
+            "confidence_grade": self.confidence_grade,
         }
 
 
 def optimize_candidates(
-    waveform: pd.DataFrame,
+    waveforms: list[pd.DataFrame],
     current_settings: FasteningSettings,
     objectives: OptimizationObjectives,
     parameter_ranges: dict[str, dict[str, float]] | None = None,
 ) -> OptimizationResult:
+    if not waveforms:
+        raise ValueError("optimize_candidates requires at least one waveform.")
+
+    cycle_ids = [_waveform_cycle_id(frame, index) for index, frame in enumerate(waveforms)]
+    cycle_count = len(waveforms)
+    gate_mode = _gate_mode(cycle_count)
+    grade = confidence_grade(cycle_count)
+
     candidates = _generate_candidates(current_settings, objectives, parameter_ranges)
     evaluated: list[CandidateEvaluation] = []
+    all_evaluations: list[tuple[FasteningSettings, list[CycleEvaluation], list[str]]] = []
+    rejection_details: list[dict[str, Any]] = []
     rejected = 0
+
     for candidate in candidates[: objectives.max_candidates]:
-        simulation = simulate_waveform(waveform, current_settings, candidate)
-        violations = _constraint_violations(simulation, objectives)
-        if violations:
+        per_cycle = [
+            CycleEvaluation(
+                cycle_id=cycle_id,
+                simulation=(simulation := simulate_waveform(frame, current_settings, candidate)),
+                violations=_constraint_violations(simulation, objectives),
+            )
+            for cycle_id, frame in zip(cycle_ids, waveforms)
+        ]
+        group_violations = _group_violations(per_cycle, objectives, gate_mode)
+        all_evaluations.append((candidate, per_cycle, group_violations))
+        if group_violations:
             rejected += 1
+            for item in per_cycle:
+                for violation in item.violations:
+                    rejection_details.append(
+                        {
+                            "settings": candidate.to_dict(),
+                            "cycle_id": item.cycle_id,
+                            "violation": violation,
+                        }
+                    )
             continue
-        score, breakdown = _score_candidate(simulation, current_settings, objectives)
         evaluated.append(
-            CandidateEvaluation(
-                label="unassigned",
-                settings=candidate,
-                score=score,
-                score_breakdown=breakdown,
-                simulation=simulation,
-                reason="Candidate satisfies MVP constraints.",
-                warnings=simulation.warnings,
+            _build_evaluation(
+                candidate,
+                per_cycle,
+                current_settings,
+                objectives,
+                gate_mode,
+                grade,
+                reason="Candidate satisfies MVP constraints across the cycle group.",
             )
         )
 
     if not evaluated:
-        for candidate in candidates[: min(20, len(candidates))]:
-            simulation = simulate_waveform(waveform, current_settings, candidate)
-            score, breakdown = _score_candidate(simulation, current_settings, objectives)
+        for candidate, per_cycle, group_violations in all_evaluations[: min(20, len(all_evaluations))]:
+            fallback = _build_evaluation(
+                candidate,
+                per_cycle,
+                current_settings,
+                objectives,
+                gate_mode,
+                grade,
+                reason="Fallback candidate; review constraints before use.",
+                extra_warnings=group_violations,
+            )
             evaluated.append(
                 CandidateEvaluation(
-                    label="unassigned",
-                    settings=candidate,
-                    score=score * 0.6,
-                    score_breakdown=breakdown,
-                    simulation=simulation,
-                    reason="Fallback candidate; review constraints before use.",
-                    warnings=simulation.warnings + _constraint_violations(simulation, objectives),
+                    label=fallback.label,
+                    settings=fallback.settings,
+                    score=fallback.score * 0.6,
+                    score_breakdown=fallback.score_breakdown,
+                    simulation=fallback.simulation,
+                    reason=fallback.reason,
+                    warnings=fallback.warnings,
+                    per_cycle=fallback.per_cycle,
+                    gate_mode=fallback.gate_mode,
+                    confidence_grade=fallback.confidence_grade,
                 )
             )
 
@@ -120,6 +236,50 @@ def optimize_candidates(
         rejected_count=rejected,
         recommended=recommended,
         all_candidates=sorted(evaluated, key=lambda item: item.score, reverse=True)[:20],
+        rejection_details=rejection_details[:100],
+        cycle_count=cycle_count,
+        gate_mode=gate_mode,
+        confidence_grade=grade,
+    )
+
+
+def _waveform_cycle_id(frame: pd.DataFrame, index: int) -> str:
+    if "cycle_id" in frame.columns and len(frame) > 0:
+        return str(frame["cycle_id"].iloc[0])
+    return f"cycle-{index}"
+
+
+def _worst_cycle(per_cycle: list[CycleEvaluation]) -> CycleEvaluation:
+    return max(
+        per_cycle,
+        key=lambda item: item.simulation.predicted_features.overshoot_percent,
+    )
+
+
+def _build_evaluation(
+    candidate: FasteningSettings,
+    per_cycle: list[CycleEvaluation],
+    current_settings: FasteningSettings,
+    objectives: OptimizationObjectives,
+    gate_mode: str,
+    grade: str,
+    reason: str,
+    extra_warnings: list[str] | None = None,
+) -> CandidateEvaluation:
+    worst = _worst_cycle(per_cycle)
+    score, breakdown = _score_candidate(worst.simulation, current_settings, objectives)
+    warnings = list(worst.simulation.warnings) + list(extra_warnings or [])
+    return CandidateEvaluation(
+        label="unassigned",
+        settings=candidate,
+        score=score,
+        score_breakdown=breakdown,
+        simulation=worst.simulation,
+        reason=reason,
+        warnings=warnings,
+        per_cycle=per_cycle,
+        gate_mode=gate_mode,
+        confidence_grade=grade,
     )
 
 
@@ -290,4 +450,7 @@ def _with_label(candidate: CandidateEvaluation, label: str, reason: str) -> Cand
         simulation=candidate.simulation,
         reason=reason,
         warnings=candidate.warnings,
+        per_cycle=candidate.per_cycle,
+        gate_mode=candidate.gate_mode,
+        confidence_grade=candidate.confidence_grade,
     )

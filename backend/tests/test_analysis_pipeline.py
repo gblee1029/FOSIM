@@ -124,7 +124,7 @@ def test_optimizer_returns_three_purpose_built_candidates():
         max_fastening_time=620,
     )
 
-    result = optimize_candidates(waveform, settings, objectives)
+    result = optimize_candidates([waveform], settings, objectives)
 
     labels = {candidate.label for candidate in result.recommended}
     assert labels == {"quality_stable", "cycle_time", "minimum_change"}

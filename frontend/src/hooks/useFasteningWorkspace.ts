@@ -11,6 +11,7 @@ import type {
   ImportResponse,
   OptimizationResult,
   SimulationResult,
+  WorkspaceData,
 } from "../types/domain";
 
 function sampleCandidateFrom(settings: FasteningSettings): FasteningSettings {
@@ -23,8 +24,7 @@ function sampleCandidateFrom(settings: FasteningSettings): FasteningSettings {
 }
 
 function cyclesFrom(response: ImportResponse | null): AnalyzedCycle[] {
-  if (!response) return [];
-  return response.cycles?.length ? response.cycles : [{ cycle: response.cycle, analysis: response.analysis }];
+  return response?.cycles ?? [];
 }
 
 function cycleSummaryFrom(entry: AnalyzedCycle | undefined): string {
@@ -54,7 +54,7 @@ export function useFasteningWorkspace() {
     return availableCycles.find((entry) => entry.cycle.cycle_id === activeCycleId) ?? availableCycles[0];
   }, [activeCycleId, availableCycles]);
 
-  const data = useMemo<ImportResponse | null>(() => {
+  const data = useMemo<WorkspaceData | null>(() => {
     if (!activeEntry) return null;
     return {
       ...activeEntry,
@@ -238,6 +238,7 @@ export function useFasteningWorkspace() {
   return {
     data,
     availableCycles,
+    groupSummary: importResult?.group_summary,
     activeCycleId: activeEntry?.cycle.cycle_id,
     candidateSettings,
     simulation,

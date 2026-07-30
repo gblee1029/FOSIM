@@ -122,7 +122,6 @@ def _analyze_import(settings_csv: str, waveform_csvs: list[str]) -> dict[str, An
     imported_cycles = import_csv_batch(settings_csv, waveform_csvs)
     analyzed_cycles = [_analyze_cycle(imported) for imported in imported_cycles]
     response = {
-        **analyzed_cycles[0],
         "cycles": analyzed_cycles,
         "active_cycle_id": analyzed_cycles[0]["cycle"]["cycle_id"],
         "group_summary": _build_group_summary(imported_cycles),
@@ -185,8 +184,7 @@ def _analyze_cycle(imported: ImportedCycle) -> dict[str, Any]:
 
 
 def _store_import(payload: dict[str, Any]) -> None:
-    entries = payload.get("cycles") or [{"cycle": payload["cycle"], "analysis": payload["analysis"]}]
-    for entry in entries:
+    for entry in payload["cycles"]:
         _store_import_entry(entry)
 
 

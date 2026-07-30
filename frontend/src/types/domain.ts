@@ -112,10 +112,17 @@ export type GroupSummary = {
   confidence_grade: string;
 };
 
-export type ImportResponse = AnalyzedCycle & {
-  cycles?: AnalyzedCycle[];
-  active_cycle_id?: string;
+/** `/api/import/csv`와 `/api/sample/cycle`의 응답. 대표 사이클을 최상위로 전개하지 않는다. */
+export type ImportResponse = {
+  cycles: AnalyzedCycle[];
+  active_cycle_id: string;
   group_summary?: GroupSummary;
+};
+
+/** 활성 사이클을 펼쳐 화면에 넘기는 파생 형태. API 응답이 아니다. */
+export type WorkspaceData = AnalyzedCycle & {
+  cycles: AnalyzedCycle[];
+  active_cycle_id: string;
 };
 
 export type SimulationResult = {

@@ -7,6 +7,7 @@ import { ImportPanel } from "./components/ImportPanel";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { WaveformChart } from "./components/WaveformChart";
 import { CycleSelector } from "./components/workspace/CycleSelector";
+import { GroupOverview } from "./components/workspace/GroupOverview";
 import { OverviewTile } from "./components/workspace/OverviewTile";
 import { SegmentTimeline } from "./components/workspace/SegmentTimeline";
 import { SimulationNotes } from "./components/workspace/SimulationNotes";
@@ -21,6 +22,7 @@ function App() {
   const {
     data,
     availableCycles,
+    groupSummary,
     activeCycleId,
     candidateSettings,
     simulation,
@@ -81,8 +83,14 @@ function App() {
             </div>
             <ImportPanel loading={loading} onImport={handleImport} onLoadSample={handleLoadSample} />
             {availableCycles.length > 1 && (
-              <CycleSelector cycles={availableCycles} activeCycleId={activeCycleId} onSelect={selectCycle} />
+              <CycleSelector
+                cycles={availableCycles}
+                activeCycleId={activeCycleId}
+                onSelect={selectCycle}
+                excludedIds={groupSummary?.exclusion.excluded.map((entry) => entry.cycle_id)}
+              />
             )}
+            {groupSummary && <GroupOverview summary={groupSummary} cycles={availableCycles} />}
             {data?.analysis.diagnosis && <DiagnosisPanel diagnosis={data.analysis.diagnosis} />}
             {simulation && <SimulationNotes simulation={simulation} />}
           </aside>

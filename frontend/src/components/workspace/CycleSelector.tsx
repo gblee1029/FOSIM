@@ -5,9 +5,10 @@ type Props = {
   cycles: AnalyzedCycle[];
   activeCycleId?: string;
   onSelect: (cycleId: string) => void;
+  excludedIds?: string[];
 };
 
-export function CycleSelector({ cycles, activeCycleId, onSelect }: Props) {
+export function CycleSelector({ cycles, activeCycleId, onSelect, excludedIds = [] }: Props) {
   return (
     <Card>
       <CardHeader>
@@ -19,11 +20,15 @@ export function CycleSelector({ cycles, activeCycleId, onSelect }: Props) {
           value={activeCycleId ?? cycles[0]?.cycle.cycle_id ?? ""}
           onChange={(event) => onSelect(event.target.value)}
         >
-          {cycles.map((entry) => (
-            <option key={entry.cycle.cycle_id} value={entry.cycle.cycle_id}>
-              {entry.cycle.cycle_id}
-            </option>
-          ))}
+          {cycles.map((entry) => {
+            const excluded = excludedIds.includes(entry.cycle.cycle_id);
+            return (
+              <option key={entry.cycle.cycle_id} value={entry.cycle.cycle_id}>
+                {entry.cycle.cycle_id}
+                {excluded ? " (제외됨)" : ""}
+              </option>
+            );
+          })}
         </select>
         <div className="grid grid-cols-2 gap-2 text-xs">
           <div className="rounded-md border border-slate-100 bg-white px-2 py-2">

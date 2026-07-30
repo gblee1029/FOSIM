@@ -31,16 +31,16 @@ def test_import_simulation_and_optimization_api_flow():
     )
     assert imported.status_code == 200
     body = imported.json()
-    assert body["cycle"]["cycle_id"] == "CYCLE-API"
-    assert body["analysis"]["features"]["peak_torque"] >= 1.2
+    assert body["cycles"][0]["cycle"]["cycle_id"] == "CYCLE-API"
+    assert body["cycles"][0]["analysis"]["features"]["peak_torque"] >= 1.2
 
     simulation = client.post(
         "/api/simulations",
         json={
-            "waveform": body["cycle"]["waveform"],
-            "current_settings": body["cycle"]["settings"],
+            "waveform": body["cycles"][0]["cycle"]["waveform"],
+            "current_settings": body["cycles"][0]["cycle"]["settings"],
             "candidate_settings": {
-                **body["cycle"]["settings"],
+                **body["cycles"][0]["cycle"]["settings"],
                 "target_speed": 760,
                 "clamp_rising_time": 150,
                 "torque_hold_time": 50,
@@ -55,8 +55,8 @@ def test_import_simulation_and_optimization_api_flow():
     optimization = client.post(
         "/api/optimizations",
         json={
-            "waveform": body["cycle"]["waveform"],
-            "current_settings": body["cycle"]["settings"],
+            "waveform": body["cycles"][0]["cycle"]["waveform"],
+            "current_settings": body["cycles"][0]["cycle"]["settings"],
             "objectives": {
                 "target_torque_min": 1.16,
                 "target_torque_max": 1.24,
@@ -113,7 +113,7 @@ def test_import_accepts_multiple_waveform_files_with_shared_settings():
     assert imported.status_code == 200
     body = imported.json()
     assert body["active_cycle_id"] == "CYCLE-MULTI-001"
-    assert body["cycle"]["cycle_id"] == "CYCLE-MULTI-001"
+    assert body["cycles"][0]["cycle"]["cycle_id"] == "CYCLE-MULTI-001"
     assert [entry["cycle"]["cycle_id"] for entry in body["cycles"]] == [
         "CYCLE-MULTI-001",
         "CYCLE-MULTI-002",
@@ -134,19 +134,20 @@ def test_import_response_includes_group_summary():
     assert summary["confidence_grade"] == "reference"
 
 
-def test_import_response_keeps_legacy_top_level_fields():
+def test_import_response_has_no_implicit_representative_cycle():
     client = TestClient(app)
     payload = client.get("/api/sample/cycle").json()
-    assert "cycle" in payload
-    assert "analysis" in payload
-    assert payload["active_cycle_id"] == payload["cycle"]["cycle_id"]
+    assert "cycle" not in payload
+    assert "analysis" not in payload
+    assert payload["cycles"][0]["cycle"]["cycle_id"] == payload["active_cycle_id"]
+    assert "group_summary" in payload
 
 
 def test_optimization_accepts_multiple_waveforms():
     client = TestClient(app)
     imported = client.get("/api/sample/cycle").json()
-    waveform = imported["cycle"]["waveform"]
-    settings = imported["cycle"]["settings"]
+    waveform = imported["cycles"][0]["cycle"]["waveform"]
+    settings = imported["cycles"][0]["cycle"]["settings"]
     response = client.post(
         "/api/optimizations",
         json={

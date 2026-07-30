@@ -120,3 +120,47 @@ def test_import_accepts_multiple_waveform_files_with_shared_settings():
     ]
     assert all(entry["analysis"]["features"]["peak_torque"] > 1.0 for entry in body["cycles"])
     assert body["cycles"][0]["cycle"]["issues"][0]["severity"] == "warning"
+
+
+def test_import_response_includes_group_summary():
+    client = TestClient(app)
+    response = client.get("/api/sample/cycle")
+    assert response.status_code == 200
+    summary = response.json()["group_summary"]
+    assert summary["is_single_group"] is True
+    assert summary["groups"][0]["cycle_count"] == 1
+    assert "final_torque" in summary["distributions"]
+    assert summary["exclusion"]["included_count"] == 1
+    assert summary["confidence_grade"] == "reference"
+
+
+def test_import_response_keeps_legacy_top_level_fields():
+    client = TestClient(app)
+    payload = client.get("/api/sample/cycle").json()
+    assert "cycle" in payload
+    assert "analysis" in payload
+    assert payload["active_cycle_id"] == payload["cycle"]["cycle_id"]
+
+
+def test_optimization_accepts_multiple_waveforms():
+    client = TestClient(app)
+    imported = client.get("/api/sample/cycle").json()
+    waveform = imported["cycle"]["waveform"]
+    settings = imported["cycle"]["settings"]
+    response = client.post(
+        "/api/optimizations",
+        json={
+            "waveforms": [waveform, waveform],
+            "current_settings": settings,
+            "objectives": {
+                "target_torque_min": settings["target_torque"] * 0.95,
+                "target_torque_max": settings["target_torque"] * 1.05,
+                "max_overshoot_percent": 8.0,
+                "max_fastening_time": 900.0,
+            },
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["cycle_count"] == 2
+    assert body["gate_mode"] == "worst"

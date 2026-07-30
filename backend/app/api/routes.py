@@ -11,9 +11,20 @@ from app.db.database import get_session
 from app.db.models import AnalysisRecord, CycleRecord, OptimizationRecord, SettingsRecord, SimulationRecord
 from app.services.diagnosis.rules import diagnose
 from app.services.feature_extraction.features import extract_features
+from app.services.group_analysis.exclusion import select_included_cycles
+from app.services.group_analysis.grouping import group_cycles_by_settings
+from app.services.group_analysis.statistics import (
+    compute_envelope,
+    process_capability,
+    summarize_features,
+)
 from app.services.import_service.csv_import import ImportedCycle, import_csv_batch
 from app.services.import_service.sample_data import synthetic_settings, synthetic_waveform
-from app.services.optimization.optimizer import OptimizationObjectives, optimize_candidates
+from app.services.optimization.optimizer import (
+    OptimizationObjectives,
+    confidence_grade,
+    optimize_candidates,
+)
 from app.services.segmentation.segments import detect_segments
 from app.services.simulation.simulator import FasteningSettings, simulate_waveform
 
@@ -42,10 +53,21 @@ class SimulationRequest(BaseModel):
 
 
 class OptimizationRequest(BaseModel):
-    waveform: list[dict[str, Any]]
+    waveform: list[dict[str, Any]] | None = None
+    waveforms: list[list[dict[str, Any]]] | None = None
     current_settings: dict[str, Any]
     objectives: dict[str, Any]
     parameter_ranges: dict[str, dict[str, float]] | None = None
+
+    def waveform_frames(self) -> list[pd.DataFrame]:
+        frames: list[pd.DataFrame] = []
+        if self.waveform:
+            frames.append(pd.DataFrame(self.waveform))
+        if self.waveforms:
+            frames.extend(pd.DataFrame(item) for item in self.waveforms)
+        if not frames:
+            raise ValueError("At least one waveform is required.")
+        return frames
 
 
 @router.get("/health")
@@ -80,16 +102,19 @@ def run_simulation(request: SimulationRequest) -> dict[str, Any]:
 
 @router.post("/optimizations")
 def run_optimization(request: OptimizationRequest) -> dict[str, Any]:
-    waveform = pd.DataFrame(request.waveform)
+    try:
+        frames = request.waveform_frames()
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     settings = FasteningSettings.from_mapping(request.current_settings)
     objectives = OptimizationObjectives.from_mapping(request.objectives)
     result = optimize_candidates(
-        [waveform],
+        frames,
         settings,
         objectives,
         parameter_ranges=request.parameter_ranges,
     ).to_dict()
-    _store_optimization(str(waveform["cycle_id"].iloc[0]), request.objectives, result)
+    _store_optimization(str(frames[0]["cycle_id"].iloc[0]), request.objectives, result)
     return result
 
 
@@ -100,9 +125,49 @@ def _analyze_import(settings_csv: str, waveform_csvs: list[str]) -> dict[str, An
         **analyzed_cycles[0],
         "cycles": analyzed_cycles,
         "active_cycle_id": analyzed_cycles[0]["cycle"]["cycle_id"],
+        "group_summary": _build_group_summary(imported_cycles),
     }
     _store_import(response)
     return response
+
+
+def _build_group_summary(imported_cycles: list[ImportedCycle]) -> dict[str, Any]:
+    groups = group_cycles_by_settings(imported_cycles)
+    active = groups[0]
+    members = [cycle for cycle in imported_cycles if cycle.cycle_id in set(active.cycle_ids)]
+
+    features_list = []
+    diagnoses = []
+    for cycle in members:
+        segments = detect_segments(cycle.waveform, cycle.settings)
+        features = extract_features(cycle.waveform, segments, cycle.settings)
+        features_list.append(features)
+        diagnoses.append(diagnose(features))
+
+    final_torques = [float(features.final_torque) for features in features_list]
+    target = float(active.settings.target_torque)
+    exclusion = select_included_cycles(
+        [cycle.cycle_id for cycle in members], diagnoses, final_torques
+    )
+    distributions = summarize_features(features_list)
+    envelope = compute_envelope([cycle.waveform for cycle in members])
+
+    return {
+        "groups": [group.to_dict() for group in groups],
+        "is_single_group": len(groups) == 1,
+        "active_group_index": 0,
+        "distributions": {
+            name: dist.to_dict() for name, dist in distributions.items()
+        },
+        "capability": {
+            "final_torque_cpk": process_capability(
+                final_torques, target * 0.97, target * 1.03
+            )
+        },
+        "envelope": envelope.to_dict(),
+        "exclusion": exclusion.to_dict(),
+        "confidence_grade": confidence_grade(len(members)),
+    }
 
 
 def _analyze_cycle(imported: ImportedCycle) -> dict[str, Any]:

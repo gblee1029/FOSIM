@@ -69,20 +69,65 @@ class SimulationResult:
         }
 
 
+@dataclass(frozen=True)
+class PreparedWaveform:
+    """후보와 무관한 전처리 결과.
+
+    정규화·구간분할·특징추출은 관측 파형과 현재 설정에만 의존하므로 후보마다
+    다시 계산할 필요가 없다. 후보 수만큼 반복하면 최적화 비용의 대부분을
+    같은 계산에 쓰게 되어, 한 번 만들어 재사용한다.
+    """
+
+    clean: pd.DataFrame
+    segments: Any
+    current_features: Any
+
+
+def prepare_waveform(
+    waveform: pd.DataFrame,
+    current_settings: FasteningSettings,
+) -> PreparedWaveform:
+    from app.services.feature_extraction.features import extract_features
+    from app.services.segmentation.segments import detect_segments
+
+    clean = _normalize_waveform(waveform)
+    segments = detect_segments(clean, current_settings)
+    return PreparedWaveform(
+        clean=clean,
+        segments=segments,
+        current_features=extract_features(clean, segments, current_settings),
+    )
+
+
 def simulate_waveform(
     waveform: pd.DataFrame,
     current_settings: FasteningSettings,
     candidate_settings: FasteningSettings,
 ) -> SimulationResult:
-    from app.services.feature_extraction.features import (
-        FasteningFeatures,
-        extract_features,
+    return simulate_prepared(
+        prepare_waveform(waveform, current_settings),
+        current_settings,
+        candidate_settings,
     )
-    from app.services.segmentation.segments import detect_segments
 
-    clean = _normalize_waveform(waveform)
-    segments = detect_segments(clean, current_settings)
-    current_features = extract_features(clean, segments, current_settings)
+
+def simulate_prepared(
+    prepared: PreparedWaveform,
+    current_settings: FasteningSettings,
+    candidate_settings: FasteningSettings,
+    with_waveform: bool = True,
+) -> SimulationResult:
+    """준비된 파형으로 후보 하나를 시뮬레이션한다.
+
+    `with_waveform=False`는 예측 파형 생성을 건너뛴다. 후보 탐색 중에는 점수에
+    쓰이는 예측 특징만 필요하고 파형은 화면 표시용이므로, 최종 후보에 대해서만
+    다시 생성하면 된다.
+    """
+    from app.services.feature_extraction.features import FasteningFeatures
+
+    clean = prepared.clean
+    segments = prepared.segments
+    current_features = prepared.current_features
     setting_changes = _setting_changes(current_settings, candidate_settings)
     warnings = _simulation_warnings(setting_changes, current_features)
 
@@ -207,11 +252,15 @@ def simulate_waveform(
         anomaly_score=max(0.0, min(1.0, 1.0 - predicted_stability)),
     )
 
-    predicted_waveform = _generate_predicted_waveform(
-        clean,
-        current_features,
-        predicted_features,
-        candidate_settings,
+    predicted_waveform = (
+        _generate_predicted_waveform(
+            clean,
+            current_features,
+            predicted_features,
+            candidate_settings,
+        )
+        if with_waveform
+        else []
     )
     confidence = _confidence(setting_changes, current_features, clean, warnings)
     return SimulationResult(

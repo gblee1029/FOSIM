@@ -1,12 +1,18 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 import numpy as np
 import pandas as pd
 
-from app.services.simulation.simulator import FasteningSettings, SimulationResult, simulate_waveform
+from app.services.simulation.simulator import (
+    FasteningSettings,
+    PreparedWaveform,
+    SimulationResult,
+    prepare_waveform,
+    simulate_prepared,
+)
 
 
 @dataclass(frozen=True)
@@ -162,6 +168,9 @@ def optimize_candidates(
     gate_mode = _gate_mode(cycle_count)
     grade = confidence_grade(cycle_count)
 
+    # 정규화·구간분할·특징추출은 후보와 무관하므로 파형당 한 번만 한다.
+    prepared_waveforms = [prepare_waveform(frame, current_settings) for frame in waveforms]
+
     candidates = _generate_candidates(current_settings, objectives, parameter_ranges)
     evaluated: list[CandidateEvaluation] = []
     all_evaluations: list[tuple[FasteningSettings, list[CycleEvaluation], list[str]]] = []
@@ -172,10 +181,14 @@ def optimize_candidates(
         per_cycle = [
             CycleEvaluation(
                 cycle_id=cycle_id,
-                simulation=(simulation := simulate_waveform(frame, current_settings, candidate)),
+                simulation=(
+                    simulation := simulate_prepared(
+                        prepared, current_settings, candidate, with_waveform=False
+                    )
+                ),
                 violations=_constraint_violations(simulation, objectives),
             )
-            for cycle_id, frame in zip(cycle_ids, waveforms)
+            for cycle_id, prepared in zip(cycle_ids, prepared_waveforms)
         ]
         group_violations = _group_violations(per_cycle, objectives, gate_mode)
         all_evaluations.append((candidate, per_cycle, group_violations))
@@ -231,11 +244,23 @@ def optimize_candidates(
             )
 
     recommended = _select_recommended(evaluated, current_settings)
+    top_candidates = sorted(evaluated, key=lambda item: item.score, reverse=True)[:20]
+
+    # 예측 파형은 화면에 나가는 후보에만 필요하므로 여기서 채운다.
+    recommended = [
+        _attach_predicted_waveform(item, prepared_waveforms, current_settings)
+        for item in recommended
+    ]
+    top_candidates = [
+        _attach_predicted_waveform(item, prepared_waveforms, current_settings)
+        for item in top_candidates
+    ]
+
     return OptimizationResult(
         evaluated_count=len(evaluated),
         rejected_count=rejected,
         recommended=recommended,
-        all_candidates=sorted(evaluated, key=lambda item: item.score, reverse=True)[:20],
+        all_candidates=top_candidates,
         rejection_details=rejection_details[:100],
         cycle_count=cycle_count,
         gate_mode=gate_mode,
@@ -249,11 +274,32 @@ def _waveform_cycle_id(frame: pd.DataFrame, index: int) -> str:
     return f"cycle-{index}"
 
 
-def _worst_cycle(per_cycle: list[CycleEvaluation]) -> CycleEvaluation:
+def _worst_cycle_index(per_cycle: list[CycleEvaluation]) -> int:
     return max(
-        per_cycle,
-        key=lambda item: item.simulation.predicted_features.overshoot_percent,
+        range(len(per_cycle)),
+        key=lambda index: per_cycle[index].simulation.predicted_features.overshoot_percent,
     )
+
+
+def _worst_cycle(per_cycle: list[CycleEvaluation]) -> CycleEvaluation:
+    return per_cycle[_worst_cycle_index(per_cycle)]
+
+
+def _attach_predicted_waveform(
+    candidate: CandidateEvaluation,
+    prepared_waveforms: list[PreparedWaveform],
+    current_settings: FasteningSettings,
+) -> CandidateEvaluation:
+    """후보 탐색 중 건너뛴 예측 파형을 최종 후보에만 채워 넣는다.
+
+    per_cycle은 prepared_waveforms와 같은 순서이므로 위치로 짝짓는다. cycle_id는
+    파형마다 유일하다는 보장이 없어 키로 쓰지 않는다.
+    """
+    index = _worst_cycle_index(candidate.per_cycle)
+    simulation = simulate_prepared(
+        prepared_waveforms[index], current_settings, candidate.settings
+    )
+    return replace(candidate, simulation=simulation)
 
 
 def _build_evaluation(

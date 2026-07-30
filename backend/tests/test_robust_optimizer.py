@@ -9,7 +9,12 @@ from app.services.optimization.optimizer import (
     confidence_grade,
     optimize_candidates,
 )
-from app.services.simulation.simulator import FasteningSettings
+from app.services.simulation.simulator import (
+    FasteningSettings,
+    prepare_waveform,
+    simulate_prepared,
+    simulate_waveform,
+)
 
 
 def _settings() -> FasteningSettings:
@@ -109,6 +114,81 @@ def test_score_never_exceeds_one_hundred():
 def test_single_cycle_gets_full_reproducibility():
     result = optimize_candidates([_scaled_waveform(1.0)], _settings(), _objectives())
     assert result.recommended[0].score_breakdown["reproducibility"] == pytest.approx(20.0)
+
+
+def _feature_values(features) -> dict[str, float]:
+    return {
+        name: getattr(features, name)
+        for name in vars(features)
+        if isinstance(getattr(features, name), float)
+    }
+
+
+def test_prepared_simulation_matches_the_one_shot_path():
+    """전처리를 재사용해도 단발 호출과 완전히 같은 결과여야 한다."""
+    waveform = _scaled_waveform(1.0)
+    candidate = FasteningSettings(
+        target_speed=760.0,
+        target_torque=1.2,
+        clamp_rising_time=140.0,
+        torque_hold_time=50.0,
+    )
+    direct = simulate_waveform(waveform, _settings(), candidate)
+    prepared = prepare_waveform(waveform, _settings())
+    reused = simulate_prepared(prepared, _settings(), candidate)
+
+    assert _feature_values(reused.predicted_features) == _feature_values(direct.predicted_features)
+    assert reused.confidence.score == direct.confidence.score
+    assert len(reused.predicted_waveform) == len(direct.predicted_waveform)
+
+
+def test_preparation_is_reusable_across_candidates():
+    """같은 prepared 객체를 여러 후보에 써도 서로 오염되지 않는다."""
+    waveform = _scaled_waveform(1.0)
+    prepared = prepare_waveform(waveform, _settings())
+    first = FasteningSettings(
+        target_speed=700.0, target_torque=1.2, clamp_rising_time=200.0, torque_hold_time=60.0
+    )
+    second = FasteningSettings(
+        target_speed=900.0, target_torque=1.2, clamp_rising_time=60.0, torque_hold_time=10.0
+    )
+    simulate_prepared(prepared, _settings(), first)
+    after = simulate_prepared(prepared, _settings(), second)
+    fresh = simulate_waveform(waveform, _settings(), second)
+    assert _feature_values(after.predicted_features) == _feature_values(fresh.predicted_features)
+
+
+def test_stored_simulation_equals_a_fresh_full_simulation():
+    """최적화기가 담아 돌려주는 시뮬레이션은 새로 계산한 것과 같아야 한다.
+
+    per_cycle은 입력 파형 순서를 유지하므로 위치로 대조한다. cycle_id로 찾으면
+    같은 id를 가진 파형이 섞였을 때 엉뚱한 사이클과 비교하게 된다.
+    """
+    waveforms = [_scaled_waveform(1.0), _scaled_waveform(1.02), _scaled_waveform(0.98)]
+    result = optimize_candidates(waveforms, _settings(), _objectives())
+    for candidate in result.recommended:
+        assert len(candidate.per_cycle) == len(waveforms)
+        for frame, evaluation in zip(waveforms, candidate.per_cycle):
+            fresh = simulate_waveform(frame, _settings(), candidate.settings)
+            assert _feature_values(evaluation.simulation.predicted_features) == _feature_values(
+                fresh.predicted_features
+            )
+
+        worst = max(
+            candidate.per_cycle,
+            key=lambda item: item.simulation.predicted_features.overshoot_percent,
+        )
+        assert _feature_values(candidate.simulation.predicted_features) == _feature_values(
+            worst.simulation.predicted_features
+        )
+
+
+def test_recommended_candidates_carry_a_predicted_waveform():
+    """예측 파형 생성을 미뤄도 추천 후보에는 반드시 파형이 실려 있어야 한다."""
+    waveforms = [_scaled_waveform(1.0), _scaled_waveform(1.02)]
+    result = optimize_candidates(waveforms, _settings(), _objectives())
+    for candidate in result.recommended:
+        assert len(candidate.simulation.predicted_waveform) > 0
 
 
 def test_tight_group_scores_reproducibility_above_scattered_group():

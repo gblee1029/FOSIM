@@ -267,7 +267,7 @@ def _build_evaluation(
     extra_warnings: list[str] | None = None,
 ) -> CandidateEvaluation:
     worst = _worst_cycle(per_cycle)
-    score, breakdown = _score_candidate(worst.simulation, current_settings, objectives)
+    score, breakdown = _score_candidate(per_cycle, current_settings, objectives)
     warnings = list(worst.simulation.warnings) + list(extra_warnings or [])
     return CandidateEvaluation(
         label="unassigned",
@@ -366,30 +366,55 @@ def _constraint_violations(
 
 
 def _score_candidate(
-    simulation: SimulationResult,
+    per_cycle: list[CycleEvaluation],
     current: FasteningSettings,
     objectives: OptimizationObjectives,
 ) -> tuple[float, dict[str, float]]:
-    features = simulation.predicted_features
+    features = [item.simulation.predicted_features for item in per_cycle]
+    final_torques = np.asarray([f.final_torque for f in features], dtype=float)
+    peak_torques = np.asarray([f.max_torque for f in features], dtype=float)
+    total_times = np.asarray([f.total_time for f in features], dtype=float)
+    worst_overshoot = float(max(f.overshoot_percent for f in features))
+    worst_stability = float(min(f.waveform_stability_score for f in features))
+
     target_mid = (objectives.target_torque_min + objectives.target_torque_max) / 2.0
     tolerance = max((objectives.target_torque_max - objectives.target_torque_min) / 2.0, 0.001)
-    torque_accuracy = 1.0 - min(1.0, abs(features.final_torque - target_mid) / tolerance)
-    overshoot_score = 1.0 - min(1.0, features.overshoot_percent / max(objectives.max_overshoot_percent, 0.1))
-    time_score = 1.0 - min(1.0, features.total_time / max(objectives.max_fastening_time, 1.0))
-    stability_score = features.waveform_stability_score
-    change_score = 1.0 - min(1.0, _change_distance(current, simulation.candidate_settings))
-    constraint_score = 1.0 if not _constraint_violations(simulation, objectives) else 0.0
+
+    torque_accuracy = 1.0 - min(1.0, abs(float(np.mean(final_torques)) - target_mid) / tolerance)
+    overshoot_score = 1.0 - min(
+        1.0, worst_overshoot / max(objectives.max_overshoot_percent, 0.1)
+    )
+    time_score = 1.0 - min(
+        1.0, float(np.mean(total_times)) / max(objectives.max_fastening_time, 1.0)
+    )
+    change_score = 1.0 - min(
+        1.0, _change_distance(current, per_cycle[0].simulation.candidate_settings)
+    )
+    constraint_score = 1.0 if not any(item.violations for item in per_cycle) else 0.0
+
+    # 관측된 사이클 간 변동이 시뮬레이터를 통과해 만드는 결과 산포.
+    # 이 후보가 공정 산포를 줄인다는 예측이 아니다.
+    #
+    # 예측 최종 토크가 아니라 예측 피크 토크의 산포를 쓴다. 시뮬레이터의
+    # predicted_final은 후보 설정만으로 결정되어 사이클마다 값이 같고, 따라서
+    # 산포가 항상 0이 되어 모든 후보에 같은 점수를 준다. 피크 토크는 각 사이클의
+    # 관측된 오버슈트를 통해 계산되므로 사이클 간 변동을 실제로 반영한다.
+    if peak_torques.size < 2:
+        reproducibility = 1.0
+    else:
+        spread = float(np.std(peak_torques, ddof=1))
+        reproducibility = 1.0 - min(1.0, spread / tolerance)
+
     breakdown = {
-        "constraint": constraint_score * 35.0,
-        "torque_accuracy": torque_accuracy * 20.0,
+        "constraint": constraint_score * 30.0,
+        "torque_accuracy": torque_accuracy * 15.0,
+        "reproducibility": reproducibility * 20.0,
         "overshoot": overshoot_score * 15.0,
-        "clamp_stability": stability_score * 10.0,
-        "hold_stability": stability_score * 10.0,
-        "fastening_time": time_score * 5.0,
-        "setting_change": change_score * 5.0,
+        "stability": worst_stability * 15.0,
+        "fastening_time": time_score * 3.0,
+        "setting_change": change_score * 2.0,
     }
-    score = float(sum(breakdown.values()))
-    return score, breakdown
+    return float(sum(breakdown.values())), breakdown
 
 
 def _change_distance(current: FasteningSettings, candidate: FasteningSettings) -> float:

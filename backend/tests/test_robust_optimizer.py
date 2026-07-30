@@ -83,3 +83,39 @@ def test_empty_waveform_list_is_rejected():
 )
 def test_confidence_grade_thresholds(count: int, grade: str):
     assert confidence_grade(count) == grade
+
+
+def test_score_breakdown_has_new_keys_and_sums_to_score():
+    result = optimize_candidates([_scaled_waveform(1.0)], _settings(), _objectives())
+    breakdown = result.recommended[0].score_breakdown
+    assert set(breakdown) == {
+        "constraint",
+        "torque_accuracy",
+        "reproducibility",
+        "overshoot",
+        "stability",
+        "fastening_time",
+        "setting_change",
+    }
+    assert result.recommended[0].score == pytest.approx(sum(breakdown.values()))
+
+
+def test_score_never_exceeds_one_hundred():
+    result = optimize_candidates([_scaled_waveform(1.0)], _settings(), _objectives())
+    for candidate in result.all_candidates:
+        assert candidate.score <= 100.0 + 1e-6
+
+
+def test_single_cycle_gets_full_reproducibility():
+    result = optimize_candidates([_scaled_waveform(1.0)], _settings(), _objectives())
+    assert result.recommended[0].score_breakdown["reproducibility"] == pytest.approx(20.0)
+
+
+def test_tight_group_scores_reproducibility_above_scattered_group():
+    tight = [_scaled_waveform(1.0), _scaled_waveform(1.001), _scaled_waveform(0.999)]
+    scattered = [_scaled_waveform(1.0), _scaled_waveform(1.20), _scaled_waveform(0.80)]
+    tight_result = optimize_candidates(tight, _settings(), _objectives())
+    scattered_result = optimize_candidates(scattered, _settings(), _objectives())
+    tight_score = tight_result.all_candidates[0].score_breakdown["reproducibility"]
+    scattered_score = scattered_result.all_candidates[0].score_breakdown["reproducibility"]
+    assert tight_score > scattered_score

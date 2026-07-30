@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { buildOverviewStats } from "../lib/overviewStats";
 import { hasSettingChanged, settingsSignature } from "../lib/liveSimulation";
+import { selectOptimizationWaveforms } from "../lib/optimizationBasis";
 import { importCsv, loadSampleCycle, runOptimization, runSimulation } from "../services/api";
 import type {
   AnalyzedCycle,
@@ -176,7 +177,11 @@ export function useFasteningWorkspace() {
     setLoading(true);
     setError(null);
     try {
-      const response = await runOptimization(activeEntry.cycle.waveform, activeEntry.cycle.settings);
+      const optimizationWaveforms = selectOptimizationWaveforms(
+        availableCycles,
+        importResult?.group_summary,
+      );
+      const response = await runOptimization(optimizationWaveforms, activeEntry.cycle.settings);
       setOptimization(response);
       const first = response.recommended[0];
       if (first) {

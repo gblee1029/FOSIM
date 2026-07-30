@@ -50,14 +50,14 @@ export function runSimulation(
 }
 
 export function runOptimization(
-  waveform: WaveformSample[],
+  waveforms: WaveformSample[][],
   currentSettings: FasteningSettings,
 ): Promise<OptimizationResult> {
   const target = currentSettings.target_torque;
   return request<OptimizationResult>("/optimizations", {
     method: "POST",
     body: JSON.stringify({
-      waveform,
+      waveforms,
       current_settings: currentSettings,
       objectives: {
         target_torque_min: target * 0.97,

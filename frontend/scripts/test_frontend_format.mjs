@@ -8,6 +8,7 @@ import {
   settingRanges,
   settingsSignature,
 } from "../src/lib/liveSimulation.ts";
+import { selectOptimizationWaveforms } from "../src/lib/optimizationBasis.ts";
 
 assert.equal(candidateLabel("quality_stable"), "Quality stable");
 assert.equal(candidateLabel("cycle_time"), "Cycle time");
@@ -84,5 +85,32 @@ assert.match(hookSource, /activeCycleId/);
 assert.match(hookSource, /selectCycle/);
 assert.match(timelineSource, /SegmentTimeline/);
 assert.match(notesSource, /SimulationNotes/);
+
+const cycleA = {
+  cycle: { cycle_id: "A", waveform: [{ cycle_id: "A", sample_index: 0, time_ms: 0, torque: 0.1 }] },
+};
+const cycleB = {
+  cycle: { cycle_id: "B", waveform: [{ cycle_id: "B", sample_index: 0, time_ms: 0, torque: 0.2 }] },
+};
+const summaryWithExclusion = { exclusion: { included_cycle_ids: ["A"] } };
+
+const included = selectOptimizationWaveforms([cycleA, cycleB], summaryWithExclusion);
+assert.equal(included.length, 1);
+assert.equal(included[0][0].cycle_id, "A");
+
+// group_summary가 없으면 전체 사이클을 기준으로 삼는다.
+assert.equal(selectOptimizationWaveforms([cycleA, cycleB], undefined).length, 2);
+
+// 포함 목록이 비어 있으면 전체를 쓴다. 기준 집합이 공집합이면 최적화가 불가능하다.
+assert.equal(
+  selectOptimizationWaveforms([cycleA, cycleB], { exclusion: { included_cycle_ids: [] } }).length,
+  2,
+);
+
+// 포함 목록이 어떤 사이클과도 맞지 않아도 공집합을 돌려주지 않는다.
+assert.equal(
+  selectOptimizationWaveforms([cycleA, cycleB], { exclusion: { included_cycle_ids: ["Z"] } }).length,
+  2,
+);
 
 console.log("frontend format, refactor boundaries, live simulation, and layout checks passed");

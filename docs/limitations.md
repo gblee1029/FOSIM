@@ -5,7 +5,11 @@
   current Codex request and the referenced conversation summary.
 - Real SH-2 communication is intentionally excluded from this MVP.
 - Rule thresholds are starter values, not production calibration.
-- A single waveform cannot prove the true effect of setting changes.
+- Optimization now evaluates candidates across a repeated-cycle group, which
+  removes overfitting to one arbitrarily chosen waveform and quantifies
+  cycle-to-cycle scatter. It does not reduce the simulator's own model error.
+  Proving the true effect of a setting change still requires controlled
+  before/after trials on real SH-2 equipment.
 - Target Torque changes are simulated but should be disabled unless product
   torque limits are known.
 - The generated sample data is synthetic and only validates application flow.

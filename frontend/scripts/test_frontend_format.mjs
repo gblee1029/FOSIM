@@ -77,9 +77,15 @@ assert.match(overviewSource, /settingDelta/);
 assert.match(appSource, /useFasteningWorkspace/);
 assert.doesNotMatch(appSource, /const executeSimulation/);
 assert.match(hookSource, /executeSimulation/);
-assert.match(appSource, /xl:grid-cols-\[260px_minmax\(0,1fr\)_360px\]/);
-assert.match(appSource, /Station overview/);
+assert.match(appSource, /xl:grid-cols-\[280px_minmax\(0,1fr\)_360px\]/);
+assert.match(appSource, /SidePanelTabs/);
 assert.match(appSource, /Right control rail/);
+// 페이지 전체가 스크롤되지 않아야 한다.
+assert.match(appSource, /h-screen/);
+assert.match(appSource, /overflow-hidden/);
+assert.doesNotMatch(appSource, /min-h-screen/);
+// Actions는 헤더로 옮겨졌으므로 우측 레일에 Actions 카드가 없다.
+assert.doesNotMatch(appSource, /<CardTitle>Actions<\/CardTitle>/);
 assert.match(candidateSource, /layout\?: "grid" \| "rail"/);
 assert.match(settingsSource, /prediction refresh/);
 assert.match(settingsSource, /Updates are recalculated automatically/);

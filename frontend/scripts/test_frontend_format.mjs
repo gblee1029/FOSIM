@@ -10,6 +10,7 @@ import {
 } from "../src/lib/liveSimulation.ts";
 import { selectOptimizationWaveforms } from "../src/lib/optimizationBasis.ts";
 import { sidePanelTabs } from "../src/lib/sidePanelTabs.ts";
+import { formatVersionTimestamp } from "../src/lib/appVersion.ts";
 
 assert.equal(candidateLabel("quality_stable"), "Quality stable");
 assert.equal(candidateLabel("cycle_time"), "Cycle time");
@@ -158,5 +159,13 @@ assert.equal(sidePanelTabs({ importPanel: "IMPORT", excludedCount: 0 })[1].badge
 
 // 입력 탭은 ImportPanel이 항상 있으므로 비활성이 되지 않는다.
 assert.equal(sidePanelTabs({ importPanel: "IMPORT" })[0].disabled, false);
+
+// getMonth()는 0부터 시작한다. 8월은 month=7이다.
+assert.equal(formatVersionTimestamp(new Date(2026, 7, 2, 14, 30, 12)), "20260802_143012");
+// 한 자리 수는 모두 zero-padding한다.
+assert.equal(formatVersionTimestamp(new Date(2026, 0, 5, 9, 8, 7)), "20260105_090807");
+// 자정과 연말 경계.
+assert.equal(formatVersionTimestamp(new Date(2026, 11, 31, 0, 0, 0)), "20261231_000000");
+assert.equal(formatVersionTimestamp(new Date(2026, 11, 31, 23, 59, 59)), "20261231_235959");
 
 console.log("frontend format, refactor boundaries, live simulation, and layout checks passed");

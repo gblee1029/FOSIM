@@ -80,6 +80,7 @@ assert.doesNotMatch(appSource, /const executeSimulation/);
 assert.match(hookSource, /executeSimulation/);
 assert.match(appSource, /xl:grid-cols-\[280px_minmax\(0,1fr\)_360px\]/);
 assert.match(appSource, /SidePanelTabs/);
+assert.match(appSource, /appVersion/);
 assert.match(appSource, /Right control rail/);
 // 페이지 전체가 스크롤되지 않아야 한다.
 assert.match(appSource, /h-screen/);

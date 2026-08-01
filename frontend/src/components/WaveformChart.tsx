@@ -19,6 +19,7 @@ const markerNames: Array<[keyof Segments, string]> = [
 
 export function WaveformChart({ waveform, predicted, segments }: Props) {
   const ref = useRef<HTMLDivElement | null>(null);
+  const chartRef = useRef<echarts.ECharts | null>(null);
   const option = useMemo(() => {
     const markLine = segments
       ? {
@@ -103,17 +104,30 @@ export function WaveformChart({ waveform, predicted, segments }: Props) {
     };
   }, [predicted, segments, waveform]);
 
+  // 차트 인스턴스는 마운트 시 1회만 만든다. 매번 재생성하면 사용자의 확대(dataZoom)
+  // 상태가 초기화된다.
   useEffect(() => {
-    if (!ref.current) return;
-    const chart = echarts.init(ref.current);
-    chart.setOption(option);
-    const resize = () => chart.resize();
-    window.addEventListener("resize", resize);
+    const element = ref.current;
+    if (!element) return;
+    const chart = echarts.init(element);
+    chartRef.current = chart;
+
+    // 창 크기가 그대로여도 컨테이너 높이는 바뀐다(탭 전환, 특징 표 등장 등).
+    const observer = new ResizeObserver(() => chart.resize());
+    observer.observe(element);
+
     return () => {
-      window.removeEventListener("resize", resize);
+      observer.disconnect();
       chart.dispose();
+      chartRef.current = null;
     };
+  }, []);
+
+  useEffect(() => {
+    // 예측 파형이 생기거나 사라지면 series 개수가 바뀌므로 series만 교체한다.
+    // 통째로 notMerge하면 dataZoom 위치까지 초기화된다.
+    chartRef.current?.setOption(option, { replaceMerge: ["series"] });
   }, [option]);
 
-  return <div ref={ref} className="h-[520px] w-full" />;
+  return <div ref={ref} className="h-full min-h-[320px] w-full" />;
 }

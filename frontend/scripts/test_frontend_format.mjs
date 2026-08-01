@@ -66,6 +66,10 @@ const notesSource = readFileSync(
   new URL("../src/components/workspace/SimulationNotes.tsx", import.meta.url),
   "utf8",
 );
+const waveformSource = readFileSync(
+  new URL("../src/components/WaveformChart.tsx", import.meta.url),
+  "utf8",
+);
 
 assert.match(overviewSource, /buildOverviewStats/);
 assert.match(overviewSource, /formatNumber/);
@@ -86,6 +90,10 @@ assert.match(hookSource, /activeCycleId/);
 assert.match(hookSource, /selectCycle/);
 assert.match(timelineSource, /SegmentTimeline/);
 assert.match(notesSource, /SimulationNotes/);
+assert.match(waveformSource, /ResizeObserver/);
+assert.doesNotMatch(waveformSource, /h-\[520px\]/);
+// init/dispose는 마운트 1회, setOption은 별도 effect여야 dataZoom 상태가 보존된다.
+assert.match(waveformSource, /replaceMerge/);
 
 const cycleA = {
   cycle: { cycle_id: "A", waveform: [{ cycle_id: "A", sample_index: 0, time_ms: 0, torque: 0.1 }] },

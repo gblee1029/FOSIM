@@ -9,6 +9,7 @@ import {
   settingsSignature,
 } from "../src/lib/liveSimulation.ts";
 import { selectOptimizationWaveforms } from "../src/lib/optimizationBasis.ts";
+import { sidePanelTabs } from "../src/lib/sidePanelTabs.ts";
 
 assert.equal(candidateLabel("quality_stable"), "Quality stable");
 assert.equal(candidateLabel("cycle_time"), "Cycle time");
@@ -112,5 +113,36 @@ assert.equal(
   selectOptimizationWaveforms([cycleA, cycleB], { exclusion: { included_cycle_ids: ["Z"] } }).length,
   2,
 );
+
+const fullTabs = sidePanelTabs({
+  importPanel: "IMPORT",
+  cycleSelector: "CYCLES",
+  groupOverview: "GROUP",
+  diagnosis: "DIAGNOSIS",
+  notes: "NOTES",
+  excludedCount: 2,
+});
+assert.equal(fullTabs.length, 3);
+assert.deepEqual(
+  fullTabs.map((tab) => tab.id),
+  ["input", "group", "analysis"],
+);
+assert.deepEqual(fullTabs[0].content, ["IMPORT", "CYCLES"]);
+assert.deepEqual(fullTabs[2].content, ["DIAGNOSIS", "NOTES"]);
+assert.equal(fullTabs[1].badge, 2);
+assert.equal(fullTabs.every((tab) => tab.disabled === false), true);
+
+// 내용이 없는 탭도 배열에서 빠지지 않는다. 탭 위치는 항상 고정이다.
+const sparseTabs = sidePanelTabs({ importPanel: "IMPORT" });
+assert.equal(sparseTabs.length, 3);
+assert.equal(sparseTabs[0].disabled, false);
+assert.equal(sparseTabs[1].disabled, true);
+assert.equal(sparseTabs[2].disabled, true);
+
+// 제외가 0건이면 배지를 달지 않는다.
+assert.equal(sidePanelTabs({ importPanel: "IMPORT", excludedCount: 0 })[1].badge, undefined);
+
+// 입력 탭은 ImportPanel이 항상 있으므로 비활성이 되지 않는다.
+assert.equal(sidePanelTabs({ importPanel: "IMPORT" })[0].disabled, false);
 
 console.log("frontend format, refactor boundaries, live simulation, and layout checks passed");

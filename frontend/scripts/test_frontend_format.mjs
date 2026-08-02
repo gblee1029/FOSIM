@@ -12,6 +12,8 @@ import { selectOptimizationWaveforms } from "../src/lib/optimizationBasis.ts";
 import { sidePanelTabs } from "../src/lib/sidePanelTabs.ts";
 import { formatVersionTimestamp } from "../src/lib/appVersion.ts";
 
+const viteConfigSource = readFileSync(new URL("../vite.config.js", import.meta.url), "utf8");
+
 assert.equal(candidateLabel("quality_stable"), "Quality stable");
 assert.equal(candidateLabel("cycle_time"), "Cycle time");
 assert.equal(candidateLabel("minimum_change"), "Minimum change");
@@ -84,6 +86,11 @@ assert.match(appSource, /SidePanelTabs/);
 // 지워도 통과한다. 실제 렌더 지점({appVersion})과 스타일 클래스를 직접 검사한다.
 assert.match(appSource, /\{appVersion\}/);
 assert.match(appSource, /font-mono text-\[11px\] text-slate-400/);
+// define 블록이 지워지거나 주석 처리되면 빌드와 테스트는 모두 통과하지만 번들은
+// new Date()로 대체돼 헤더가 페이지를 연 시각으로 새로고침마다 바뀐다. 실제 객체
+// 키로 살아있는지 확인해야 하므로, 줄 시작에 공백만 두고 오는 경우만 인정한다
+// (주석 처리된 "//   __APP_BUILD_ISO__: ..."는 걸러낸다).
+assert.match(viteConfigSource, /^\s*__APP_BUILD_ISO__\s*:/m);
 assert.match(appSource, /Right control rail/);
 // 페이지 전체가 스크롤되지 않아야 한다.
 assert.match(appSource, /h-screen/);

@@ -62,7 +62,7 @@ dev 서버에서는 서버 기동 시각이 그대로 보인다. `dev` 같은 �
 `scripts/build_exe.ps1`을 고친다.
 
 - 저장소 밖 `..\..\outputs` 경로를 버리고 `releases/`를 쓴다. `Resolve-Path`가 없는 경로에서 실패하던 문제도 같이 사라진다.
-- 프론트엔드 빌드 **전에** `releases/` 내용을 통째로 비운다. 기존 `FOSIM_20260726_124309`도 여기서 없어진다.
+- PyInstaller가 결과물을 만들어낸 **뒤**, 그것을 복사해 넣기 직전에 `releases/` 내용을 통째로 비운다. 기존 `FOSIM_20260726_124309`도 여기서 없어진다. 프론트엔드 빌드나 테스트보다 앞에서 비우면 그 단계가 실패했을 때 어제의 배포 가능한 zip마저 사라진 빈 폴더만 남는다. 성공한 빌드 뒤에 `releases/`가 이번 빌드의 결과물만 담는다는 보장은 그대로다.
 - 다시 채우는 것은 고정 이름 셋뿐이다.
 
 | 경로 | 내용 |
@@ -95,6 +95,14 @@ Created: <yyyy-MM-dd HH:mm:ss>
 - `App.tsx`가 `appVersion`을 쓰는지 정규식 단언
 
 `build_exe.ps1`은 자동 테스트하지 않는다. PyInstaller 실행에 수 분이 걸려 테스트 러너에 넣을 수 없다. 스크립트 변경은 실제 빌드 1회로 확인한다.
+
+`define` 배선 자체도 검증한다. `frontend/vite.config.js`에서 `define` 블록이 사라져도 빌드와 테스트는 초록으로 통과하지만, 번들은 `new Date()` 폴백을 타서 헤더가 "페이지를 연 시각"을 보여주게 된다 — 새로고침할 때마다 값이 바뀌고 VERSION.txt와도 어긋난다. 테스트가 `vite.config.js`를 읽어 `__APP_BUILD_ISO__` 키가 살아 있는지 단언한다.
+
+## 빌드 실패 처리
+
+PowerShell의 `$ErrorActionPreference = "Stop"`은 네이티브 실행 파일의 0이 아닌 종료 코드를 잡지 못한다. `npm run build`가 TypeScript 오류로 죽어도 스크립트는 계속 진행하고, `frontend/dist`에는 직전 빌드 결과물이 남아 있으므로 PyInstaller가 그것을 포장한다. 결과적으로 VERSION.txt는 새 타임스탬프를 갖는데 exe 헤더는 옛 버전을 보여준다 — 이 기능이 막으려던 바로 그 불일치다. 테스트가 빨간 채로 릴리스가 나가는 것도 같은 구멍이다.
+
+모든 네이티브 명령(`npm install`, `npm test`, `npm run build`, `pytest`, `PyInstaller`)은 `$LASTEXITCODE`를 확인해 실패한 단계 이름과 함께 예외를 던지는 헬퍼로 감싼다.
 
 ## 범위 밖
 

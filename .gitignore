@@ -19,3 +19,6 @@ data/
 !.env.example
 releases/
 .superpowers/
+.claude/
+docs/SH2_사용자 매뉴얼_Rev1.08.pdf
+docs/SH2_기술 참조 매뉴얼_Rev1.05.pdf

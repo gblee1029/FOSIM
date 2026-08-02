@@ -1,0 +1,6 @@
+﻿FOSIM
+Version: 20260802_152424
+Format: YYYYMMDD_HHmmss
+Build source: D:\gblee\Project\FOSIM\backend\dist\FOSIM
+Package: D:\gblee\Project\FOSIM\releases\FOSIM-exe.zip
+Created: 2026-08-02 15:24:24

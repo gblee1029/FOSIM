@@ -8,24 +8,24 @@
     :root {
       --bg: #eef1ed;
       --panel: #ffffff;
-      --ink: #26312f;
-      --muted: #6f7b78;
-      --line: #cfd8d3;
+      --ink: #25302e;
+      --muted: #687572;
+      --line: #ced8d2;
       --accent: #2f7d6d;
       --accent-2: #b96b35;
       --accent-3: #4267a6;
       --soft: #f7f9f6;
       --warn: #fff5e8;
-      --code: #15211f;
+      --code: #17221f;
     }
 
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      font-family: "Segoe UI", Arial, sans-serif;
+      font-family: "Segoe UI", "Malgun Gothic", Arial, sans-serif;
       color: var(--ink);
       background: var(--bg);
-      line-height: 1.55;
+      line-height: 1.6;
     }
     a { color: var(--accent-3); text-decoration: none; }
     a:hover { text-decoration: underline; }
@@ -40,9 +40,16 @@
       background: linear-gradient(135deg, #fbfcfa 0%, #edf4f0 100%);
       border-radius: 10px;
     }
-    .eyebrow { margin: 0 0 8px; color: var(--accent); font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+    .eyebrow {
+      margin: 0 0 8px;
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
     h1 { margin: 0; font-size: clamp(30px, 5vw, 54px); line-height: 1; letter-spacing: 0; }
-    .subtitle { max-width: 760px; margin: 14px 0 0; color: var(--muted); font-size: 16px; }
+    .subtitle { max-width: 780px; margin: 14px 0 0; color: var(--muted); font-size: 16px; }
     .version { text-align: right; color: var(--muted); font-size: 13px; }
     .version strong { display: block; color: var(--ink); font-size: 18px; }
     nav {
@@ -68,6 +75,8 @@
     .section-title span { width: 9px; height: 28px; border-radius: 8px; background: var(--accent); }
     h2 { margin: 0; font-size: 24px; line-height: 1.2; }
     h3 { margin: 0 0 8px; font-size: 17px; }
+    p { margin: 0 0 10px; }
+    ul { margin: 8px 0 0; padding-left: 20px; }
     .grid { display: grid; gap: 14px; }
     .grid.cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .grid.cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -81,7 +90,7 @@
     .metric {
       display: grid;
       gap: 4px;
-      min-height: 104px;
+      min-height: 112px;
       border-left: 4px solid var(--accent);
     }
     .metric b { font-size: 22px; }
@@ -104,7 +113,7 @@
       background: var(--panel);
     }
     .step:not(:last-child)::after {
-      content: "→";
+      content: ">";
       position: absolute;
       right: -14px;
       top: 42%;
@@ -123,7 +132,6 @@
     .lane { border-top: 4px solid var(--accent); }
     .lane:nth-child(2) { border-top-color: var(--accent-2); }
     .lane:nth-child(3) { border-top-color: var(--accent-3); }
-    .stack { display: grid; gap: 8px; }
     .pill {
       display: inline-flex;
       align-items: center;
@@ -136,8 +144,20 @@
       font-size: 12px;
       font-weight: 700;
     }
-    table { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
-    th, td { padding: 10px 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    th, td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
     th { background: #f3f6f3; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
     tr:last-child td { border-bottom: 0; }
     code, pre {
@@ -161,18 +181,14 @@
       border-radius: 8px;
       background: var(--warn);
     }
-    .legend { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
-    .legend span { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
-    .dot { width: 10px; height: 10px; border-radius: 2px; background: var(--accent); }
-    .dot.orange { background: var(--accent-2); }
-    .dot.blue { background: var(--accent-3); }
+    .muted { color: var(--muted); }
     footer { margin-top: 30px; padding: 18px; color: var(--muted); text-align: center; font-size: 13px; }
 
     @media (max-width: 920px) {
       header, .grid.cols-2, .grid.cols-3, .pipeline { grid-template-columns: 1fr; }
       .version { text-align: left; }
       .flow { grid-template-columns: 1fr; }
-      .step:not(:last-child)::after { content: "↓"; right: 16px; top: auto; bottom: -20px; }
+      .step:not(:last-child)::after { content: "v"; right: 16px; top: auto; bottom: -20px; }
     }
   </style>
 </head>
@@ -182,51 +198,86 @@
       <div>
         <p class="eyebrow">FOSIM Project Guide</p>
         <h1>Fastening Optimization &amp; Simulation Manager</h1>
-        <p class="subtitle">SH-2 Smart Manager 설정값과 Torque/Speed/Angle 파형 CSV를 입력받아 파형 분석, 이상 판정, 실시간 설정 변경 시뮬레이션, 후보 설정 비교를 수행하는 MVP 프로젝트입니다.</p>
+        <p class="subtitle">SH-2 Smart Manager 설정값과 Torque/Speed/Angle 파형 CSV를 분석해 체결 구간, 실용 특징값, 이상 징후, 설정 변경 시뮬레이션, 최적화 후보를 한 화면에서 비교하는 MVP입니다.</p>
       </div>
       <div class="version">
-        <strong>CSV 기반 MVP</strong>
-        실제 SH-2 장비 Write 없음<br />React + FastAPI + SQLite
+        <strong>Release v20260802_152424</strong>
+        Windows EXE package<br />React + FastAPI + SQLite
       </div>
     </header>
 
     <nav aria-label="문서 목차">
       <a href="#overview">개요</a>
-      <a href="#structure">프로젝트 구조</a>
+      <a href="#release">최신 릴리스</a>
+      <a href="#structure">구조</a>
       <a href="#data-flow">데이터 흐름</a>
       <a href="#features">주요 기능</a>
       <a href="#api">API</a>
       <a href="#data-contracts">입력 데이터</a>
       <a href="#runtime">실행/배포</a>
-      <a href="#safety">한계와 안전</a>
+      <a href="#safety">제한/안전</a>
     </nav>
 
     <section id="overview">
       <div class="section-title"><span></span><h2>1. 한눈에 보는 역할</h2></div>
       <div class="grid cols-3">
-        <div class="card metric"><small>입력</small><b>Settings + Waveforms</b><p>설정 CSV 1개와 파형 CSV 1개 이상을 Import합니다. 여러 파형은 <code>cycle_id</code>별로 분리됩니다.</p></div>
-        <div class="card metric" style="border-left-color: var(--accent-2)"><small>분석</small><b>Segments + Features</b><p>Engage, Seating, Target, Hold, Stop 지점을 찾고 Overshoot, Clamp Time, Stability 같은 특징값을 계산합니다.</p></div>
-        <div class="card metric" style="border-left-color: var(--accent-3)"><small>출력</small><b>Simulation + Candidates</b><p>설정 변경 후 예상 파형을 Overlay하고 Quality, Cycle Time, Minimum Change 후보를 비교합니다.</p></div>
+        <div class="card metric">
+          <small>입력</small>
+          <b>Settings + Waveforms</b>
+          <p>설정 CSV와 하나 이상의 파형 CSV를 가져옵니다. 여러 파형은 <code>cycle_id</code> 기준으로 분리됩니다.</p>
+        </div>
+        <div class="card metric" style="border-left-color: var(--accent-2)">
+          <small>분석</small>
+          <b>Segments + Features</b>
+          <p>Engage, Seating, Target, Hold, Stop 구간을 찾고 overshoot, clamp time, stability 같은 특징값을 계산합니다.</p>
+        </div>
+        <div class="card metric" style="border-left-color: var(--accent-3)">
+          <small>출력</small>
+          <b>Simulation + Candidates</b>
+          <p>설정 변경에 따른 예상 파형을 겹쳐 보고 Quality, Cycle Time, Minimum Change 후보를 비교합니다.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="release">
+      <div class="section-title"><span></span><h2>2. 최신 릴리스</h2></div>
+      <div class="grid cols-2">
+        <div class="card">
+          <h3>다운로드</h3>
+          <p>최신 Windows 실행 패키지는 GitHub Release에 올라가 있습니다.</p>
+          <p><a href="https://github.com/gblee1029/FOSIM/releases/tag/v20260802_152424">Release v20260802_152424</a></p>
+          <p><a href="https://github.com/gblee1029/FOSIM/releases/download/v20260802_152424/FOSIM-exe.zip">FOSIM-exe.zip 다운로드</a></p>
+          <p class="muted">로컬 빌드 산출물: <code>releases/FOSIM-exe.zip</code>, <code>releases/VERSION.txt</code></p>
+        </div>
+        <div class="card">
+          <h3>이번 실행 파일의 런처 동작</h3>
+          <ul>
+            <li><code>127.0.0.1:8000/api/health</code>가 준비될 때까지 최대 30초 대기합니다.</li>
+            <li>브라우저는 새 탭으로 열고, 매 실행마다 <code>?startup=...</code> 값을 붙여 실패 탭 재사용을 피합니다.</li>
+            <li>콘솔 창은 FastAPI 서버입니다. 콘솔 창을 닫으면 브라우저의 <code>127.0.0.1:8000</code>도 내려갑니다.</li>
+          </ul>
+        </div>
       </div>
     </section>
 
     <section id="structure">
-      <div class="section-title"><span></span><h2>2. 프로젝트 구조</h2></div>
+      <div class="section-title"><span></span><h2>3. 프로젝트 구조</h2></div>
       <div class="pipeline">
         <div class="card lane">
           <h3>Frontend</h3>
-          <p>React UI, CSV Import, 파형 Chart, 설정 Editor, 후보 카드.</p>
+          <p>단일 viewport React UI, CSV import, 좌측 탭 패널, 파형 차트, 설정 편집기, 후보 카드, 버전 표시를 담당합니다.</p>
           <pre>frontend/
   src/
     components/
     components/workspace/
     hooks/useFasteningWorkspace.ts
     services/api.ts
-    types/domain.ts</pre>
+    types/domain.ts
+  vite.config.js</pre>
         </div>
         <div class="card lane">
           <h3>Backend</h3>
-          <p>FastAPI API, CSV 분석 파이프라인, 시뮬레이션, 최적화, SQLite 저장.</p>
+          <p>FastAPI API, CSV 분석 파이프라인, 시뮬레이션, 최적화, SQLite 저장을 담당합니다.</p>
           <pre>backend/
   app/api/routes.py
   app/services/import_service/
@@ -236,37 +287,32 @@
   app/services/diagnosis/
   app/services/simulation/
   app/services/optimization/
-  app/db/</pre>
+  desktop_launcher.py</pre>
         </div>
         <div class="card lane">
           <h3>Assets &amp; Runtime</h3>
-          <p>샘플 CSV, 문서, EXE 빌드 스크립트, SQLite 런타임 DB.</p>
+          <p>샘플 CSV, 문서, EXE 빌드 스크립트, 릴리스 산출물, 런타임 SQLite DB를 포함합니다.</p>
           <pre>sample-data/
 docs/
 scripts/build_exe.ps1
 data/sh2_optimizer.db
-backend/dist/
 frontend/dist/
+backend/dist/
 releases/</pre>
         </div>
       </div>
     </section>
 
     <section id="data-flow">
-      <div class="section-title"><span></span><h2>3. 전체 데이터 흐름</h2></div>
+      <div class="section-title"><span></span><h2>4. 전체 데이터 흐름</h2></div>
       <div class="card">
         <div class="flow" aria-label="전체 데이터 처리 흐름">
-          <div class="step"><b>1. CSV Import</b><small>Settings CSV + 1개 이상 Waveform CSV</small></div>
+          <div class="step"><b>1. CSV Import</b><small>Settings CSV + 하나 이상의 waveform CSV</small></div>
           <div class="step"><b>2. Batch Split</b><small><code>cycle_id</code> 기준으로 파형 분리</small></div>
-          <div class="step"><b>3. Analyze</b><small>전처리, 구간 검출, Feature 추출</small></div>
-          <div class="step"><b>4. Diagnose</b><small>Rule 기반 이상 유형 판정</small></div>
+          <div class="step"><b>3. Analyze</b><small>전처리, 구간 검출, 특징값 추출</small></div>
+          <div class="step"><b>4. Diagnose</b><small>규칙 기반 이상 유형 판정</small></div>
           <div class="step"><b>5. Simulate</b><small>변경 설정값으로 예상 파형 생성</small></div>
-          <div class="step"><b>6. Optimize</b><small>후보 3개 추천 및 비교</small></div>
-        </div>
-        <div class="legend">
-          <span><i class="dot"></i>Frontend state</span>
-          <span><i class="dot orange"></i>Backend analysis</span>
-          <span><i class="dot blue"></i>Simulation/optimization output</span>
+          <div class="step"><b>6. Optimize</b><small>제외 cycle을 뺀 기준 파형으로 추천 후보 비교</small></div>
         </div>
       </div>
 
@@ -274,60 +320,66 @@ releases/</pre>
         <div class="card">
           <h3>Import/분석 흐름</h3>
           <pre>ImportPanel
-  → importCsv(settingsCsv, waveformCsvs[])
-  → POST /api/import/csv
-  → import_csv_batch()
-  → preprocess_waveform()
-  → detect_segments()
-  → extract_features()
-  → diagnose()
-  → cycles[] + active_cycle_id 반환</pre>
+  -> importCsv(settingsCsv, waveformCsvs[])
+  -> POST /api/import/csv
+  -> import_csv_batch()
+  -> preprocess_waveform()
+  -> detect_segments()
+  -> extract_features()
+  -> diagnose()
+  -> cycles[] + active_cycle_id 반환</pre>
         </div>
         <div class="card">
           <h3>실시간 시뮬레이션 흐름</h3>
           <pre>SettingsPanel value change
-  → useFasteningWorkspace debounce 350ms
-  → POST /api/simulations
-  → simulate_waveform()
-  → predicted_features
-  → predicted_waveform
-  → WaveformChart overlay</pre>
+  -> useFasteningWorkspace debounce
+  -> POST /api/simulations
+  -> simulate_waveform()
+  -> predicted_features
+  -> predicted_waveform
+  -> WaveformChart overlay</pre>
         </div>
       </div>
     </section>
 
     <section id="features">
-      <div class="section-title"><span></span><h2>4. 주요 기능</h2></div>
+      <div class="section-title"><span></span><h2>5. 주요 기능</h2></div>
       <div class="grid cols-3">
-        <div class="card"><h3>복수 파형 입력</h3><p>여러 Waveform CSV 파일을 선택할 수 있고, 백엔드는 각 CSV와 내부 <code>cycle_id</code>를 기준으로 <code>cycles[]</code> 결과를 생성합니다.</p><span class="pill">CycleSelector</span></div>
-        <div class="card"><h3>파형 Viewer</h3><p>현재 Torque, Speed, Angle과 예측 Torque를 같은 Chart에 Overlay합니다. Engage, Seating, Target, Hold, Stop marker를 표시합니다.</p><span class="pill">WaveformChart</span></div>
-        <div class="card"><h3>Feature 비교</h3><p>현재 Feature와 예측 Feature를 나란히 보여주며 Final Torque, Overshoot, Clamp Time, Stability를 상단 KPI로 요약합니다.</p><span class="pill">FeatureTable</span></div>
-        <div class="card"><h3>Rule 진단</h3><p>Overshoot, Undershoot, Clamp/Hold instability 같은 이상 유형을 Feature 기반 규칙으로 판정합니다.</p><span class="pill">DiagnosisPanel</span></div>
-        <div class="card"><h3>Live 설정 Editor</h3><p>Target Speed, Clamp Rising Time, Torque Hold Time, Target Torque를 수정하면 예상 파형을 자동 재계산합니다.</p><span class="pill">SettingsPanel</span></div>
-        <div class="card"><h3>후보 설정 추천</h3><p>Quality stable, Cycle time, Minimum change 세 가지 후보를 생성하고 점수, 예상 Feature, 주의사항을 비교합니다.</p><span class="pill">CandidateCards</span></div>
+        <div class="card"><h3>단일 화면 작업대</h3><p>상단 header, 좌측 tab rail, 중앙 waveform comparison, 우측 control rail을 한 viewport 안에 고정해 반복 분석 작업 중 화면 전환을 줄입니다.</p><span class="pill">App layout</span></div>
+        <div class="card"><h3>상단 Overview Tiles</h3><p>선택 cycle의 핵심 상태와 요약 지표를 header에 작은 tile로 표시하고, 앱 빌드 버전을 제목 옆에 함께 보여줍니다.</p><span class="pill">OverviewTile</span></div>
+        <div class="card"><h3>좌측 Side Panel Tabs</h3><p>입력, cycle 선택, group overview, 진단, simulation notes를 탭으로 묶고, 제외 cycle 수는 badge로 표시합니다.</p><span class="pill">SidePanelTabs</span></div>
+        <div class="card"><h3>복수 파형 입력</h3><p>여러 waveform CSV를 선택할 수 있고, 백엔드는 각 CSV와 내부 <code>cycle_id</code>를 기준으로 cycle 목록을 구성합니다.</p><span class="pill">CycleSelector</span></div>
+        <div class="card"><h3>Cycle Group Overview</h3><p>그룹 수, 최적화 기준 cycle 수, final torque 평균/표준편차, Cpk, confidence grade, 제외 cycle과 warning을 표시합니다.</p><span class="pill">GroupOverview</span></div>
+        <div class="card"><h3>파형 Viewer</h3><p>Torque, Speed, Angle과 예측 Torque를 한 차트에 표시하고 Engage, Seating, Target, Hold, Stop marker를 보여줍니다.</p><span class="pill">WaveformChart</span></div>
+        <div class="card"><h3>Segment Timeline</h3><p>검출된 체결 구간을 차트 header에 timeline 형태로 요약해 파형의 구간 해석을 빠르게 확인합니다.</p><span class="pill">SegmentTimeline</span></div>
+        <div class="card"><h3>Feature 비교</h3><p>현재 특징값과 예측 특징값을 나란히 비교해 final torque, overshoot, clamp time, stability 변화를 확인합니다.</p><span class="pill">FeatureTable</span></div>
+        <div class="card"><h3>Rule 진단</h3><p>Overshoot, undershoot, clamp/hold instability 같은 이상 유형을 feature 기반 규칙으로 판정합니다.</p><span class="pill">DiagnosisPanel</span></div>
+        <div class="card"><h3>Live 설정 Editor</h3><p>Target Speed, Clamp Rising Time, Torque Hold Time, Target Torque를 바꾸면 예상 파형과 특징값을 다시 계산합니다.</p><span class="pill">SettingsPanel</span></div>
+        <div class="card"><h3>후보 설정 추천</h3><p>Quality stable, Cycle time, Minimum change 세 가지 후보를 생성하고 점수, 예상 feature, 주의사항을 비교합니다.</p><span class="pill">CandidateCards</span></div>
+        <div class="card"><h3>Simulation Export</h3><p>시뮬레이션 결과가 있을 때 export 버튼으로 현재 분석/예측 결과를 내려받을 수 있습니다.</p><span class="pill">Export</span></div>
       </div>
     </section>
 
     <section id="api">
-      <div class="section-title"><span></span><h2>5. API와 저장 흐름</h2></div>
+      <div class="section-title"><span></span><h2>6. API와 저장 흐름</h2></div>
       <table>
         <thead><tr><th>Endpoint</th><th>입력</th><th>처리</th><th>출력/저장</th></tr></thead>
         <tbody>
           <tr><td><code>GET /api/health</code></td><td>-</td><td>서버 상태 확인</td><td><code>{ status: "ok" }</code></td></tr>
-          <tr><td><code>GET /api/sample/cycle</code></td><td>-</td><td>합성 settings/waveform 생성 후 분석</td><td>단일 sample cycle</td></tr>
-          <tr><td><code>POST /api/import/csv</code></td><td><code>settings_csv</code>, <code>waveform_csvs[]</code></td><td>복수 파형 Import, 분석, DB 저장</td><td><code>cycle</code>, <code>analysis</code>, <code>cycles[]</code></td></tr>
-          <tr><td><code>POST /api/simulations</code></td><td>선택 cycle waveform + current/candidate settings</td><td>Rule 기반 예상 Feature와 파형 생성</td><td>SimulationRecord 저장</td></tr>
-          <tr><td><code>POST /api/optimizations</code></td><td>선택 cycle waveform + objectives</td><td>후보 생성, 제약 필터, 점수 계산</td><td>OptimizationRecord 저장</td></tr>
+          <tr><td><code>GET /api/sample/cycle</code></td><td>-</td><td>합성 settings/waveform 생성 후 분석</td><td>샘플 cycle과 group summary</td></tr>
+          <tr><td><code>POST /api/import/csv</code></td><td><code>settings_csv</code>, <code>waveform_csvs[]</code></td><td>복수 파형 import, 분석, DB 저장, group summary 계산</td><td><code>cycles[]</code>, <code>active_cycle_id</code>, <code>group_summary</code></td></tr>
+          <tr><td><code>POST /api/simulations</code></td><td>선택 cycle waveform + current/candidate settings</td><td>규칙 기반 예상 feature와 파형 생성</td><td><code>SimulationRecord</code> 저장</td></tr>
+          <tr><td><code>POST /api/optimizations</code></td><td>하나 이상의 waveform + objectives</td><td>후보 생성, 제약 필터, 점수 계산</td><td><code>OptimizationRecord</code> 저장</td></tr>
         </tbody>
       </table>
       <div class="grid cols-2" style="margin-top:14px">
         <div class="card"><h3>SQLite 저장 테이블</h3><p><code>CycleRecord</code>, <code>SettingsRecord</code>, <code>AnalysisRecord</code>, <code>SimulationRecord</code>, <code>OptimizationRecord</code>가 <code>data/sh2_optimizer.db</code>에 저장됩니다.</p></div>
-        <div class="card"><h3>프론트 상태 중심</h3><p><code>useFasteningWorkspace</code>가 Import 결과, 선택 cycle, candidate settings, simulation, optimization 상태를 한 곳에서 관리합니다.</p></div>
+        <div class="card"><h3>프론트 상태 중심</h3><p><code>useFasteningWorkspace</code>가 import 결과, 선택 cycle, candidate settings, simulation, optimization, group summary 상태를 한 곳에서 관리합니다. 최적화는 <code>selectOptimizationWaveforms</code>를 통해 제외되지 않은 cycle을 우선 사용합니다.</p></div>
       </div>
     </section>
 
     <section id="data-contracts">
-      <div class="section-title"><span></span><h2>6. 입력 데이터 계약</h2></div>
+      <div class="section-title"><span></span><h2>7. 입력 데이터 계약</h2></div>
       <div class="grid cols-2">
         <div class="card">
           <h3>Settings CSV 필수 컬럼</h3>
@@ -336,7 +388,7 @@ target_speed
 target_torque
 clamp_rising_time
 torque_hold_time</pre>
-          <p>Settings row가 1개뿐이면 여러 파형에 공유 설정으로 적용하고 warning을 남깁니다. 여러 row가 있으면 waveform <code>cycle_id</code>와 같은 row를 찾습니다.</p>
+          <p>Settings row가 하나뿐이면 여러 파형에 공통 설정으로 적용하고 warning을 포함합니다. 여러 row가 있으면 waveform <code>cycle_id</code>와 같은 row를 찾습니다.</p>
         </div>
         <div class="card">
           <h3>Waveform CSV 필수 컬럼</h3>
@@ -344,47 +396,51 @@ torque_hold_time</pre>
 sample_index
 time_ms
 torque</pre>
-          <p>선택 컬럼은 <code>speed</code>, <code>angle</code>, <code>current</code>, <code>event_code</code>입니다. 여러 파일 또는 한 파일 안의 여러 <code>cycle_id</code> 모두 처리 가능합니다.</p>
+          <p>선택 컬럼은 <code>speed</code>, <code>angle</code>, <code>current</code>, <code>event_code</code>입니다. 여러 파일 또는 한 파일 안의 여러 <code>cycle_id</code>를 처리할 수 있습니다.</p>
         </div>
       </div>
     </section>
 
     <section id="runtime">
-      <div class="section-title"><span></span><h2>7. 실행과 배포 방식</h2></div>
+      <div class="section-title"><span></span><h2>8. 실행과 배포 방식</h2></div>
       <div class="grid cols-2">
         <div class="card">
           <h3>개발 실행</h3>
           <pre>cd backend
+python -m pip install -r requirements.txt
 python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 
 cd frontend
+npm.cmd install
 npm.cmd run dev
 
 Open http://127.0.0.1:5173</pre>
           <p>Vite dev server는 <code>/api</code>를 <code>http://127.0.0.1:8000</code>으로 proxy합니다.</p>
         </div>
         <div class="card">
-          <h3>EXE 배포</h3>
+          <h3>EXE 빌드와 배포</h3>
           <pre>powershell -ExecutionPolicy Bypass -File scripts/build_exe.ps1</pre>
-          <p>React build 결과와 FastAPI backend를 PyInstaller로 묶어 <code>FOSIM.exe</code>를 생성합니다. 배포 zip은 <code>releases/</code> 또는 output 폴더에 보관됩니다.</p>
+          <p>스크립트는 npm install, 프론트 테스트, 프론트 빌드, 백엔드 테스트, PyInstaller 패키징을 순서대로 실행합니다.</p>
+          <p>성공 시 <code>releases/FOSIM/</code>, <code>releases/FOSIM-exe.zip</code>, <code>releases/VERSION.txt</code>를 생성합니다.</p>
+          <p>GitHub Release asset으로 배포할 파일은 <code>FOSIM-exe.zip</code>입니다.</p>
         </div>
       </div>
     </section>
 
     <section id="safety">
-      <div class="section-title"><span></span><h2>8. 현재 한계와 안전 메모</h2></div>
+      <div class="section-title"><span></span><h2>9. 현재 제한과 안전 메모</h2></div>
       <div class="callout">
-        <strong>중요:</strong> 현재 MVP는 CSV 기반 Rule 시뮬레이터입니다. 실제 SH-2 USB/RS485 통신, Smart Manager 자동 제어, 양산 설정 Write, PLC 연동은 포함되어 있지 않습니다. 예측 파형은 설정 변경 방향성을 보기 위한 참고값이며 실제 체결 결과를 보증하지 않습니다.
+        <strong>중요:</strong> 현재 MVP는 CSV 기반 rule 시뮬레이터입니다. 실제 SH-2 USB/RS485 통신, Smart Manager 자동 제어, 생산 장비 설정 write, PLC 연동은 포함하지 않습니다. 예측 파형은 설정 변경 방향성을 보기 위한 참고값이며 실제 체결 결과를 보증하지 않습니다.
       </div>
       <div class="grid cols-3" style="margin-top:14px">
         <div class="card"><h3>좋은 사용처</h3><p>파형 분석 흐름 검토, 설정 변경 영향 교육, CSV 기반 POC, UI/UX 검증.</p></div>
-        <div class="card"><h3>추가 검증 필요</h3><p>실제 SH-2 데이터, 동일 조건 before/after 시험, 제품별 허용 토크, 현장 품질 기준.</p></div>
-        <div class="card"><h3>확장 방향</h3><p>SEHAN/Modbus 통신, 실험계획 DOE, ML Feature predictor, 승인형 Write/rollback.</p></div>
+        <div class="card"><h3>추가 검증 필요</h3><p>실제 SH-2 데이터, 동일 조건 before/after 시험, 제품별 허용 토크, 현장 sigma 기준.</p></div>
+        <div class="card"><h3>확장 방향</h3><p>SEHAN/Modbus 통신, DOE 시험계획, ML feature predictor, 승인형 write/rollback.</p></div>
       </div>
     </section>
 
     <footer>
-      Generated for FOSIM documentation. Open this file locally in a browser: <code>docs/project-overview.html</code>
+      Generated for FOSIM documentation. Open locally in a browser: <code>docs/project-overview.html</code>
     </footer>
   </div>
 </body>

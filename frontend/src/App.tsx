@@ -16,6 +16,7 @@ import { Badge } from "./components/ui/badge";
 import { Button } from "./components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./components/ui/card";
 import { useFasteningWorkspace } from "./hooks/useFasteningWorkspace";
+import { appVersion } from "./lib/appVersion";
 import { confidenceTone } from "./lib/format";
 import { settingsSignature } from "./lib/liveSimulation";
 
@@ -62,6 +63,7 @@ function App() {
               <h1 className="shrink-0 text-base font-semibold text-graphite">
                 Fastening parameter optimizer
               </h1>
+              <span className="shrink-0 font-mono text-[11px] text-slate-400">{appVersion}</span>
               <p className="truncate text-xs text-steel">{cycleSummary}</p>
             </div>
           </div>

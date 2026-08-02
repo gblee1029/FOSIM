@@ -10,6 +10,9 @@ import {
 } from "../src/lib/liveSimulation.ts";
 import { selectOptimizationWaveforms } from "../src/lib/optimizationBasis.ts";
 import { sidePanelTabs } from "../src/lib/sidePanelTabs.ts";
+import { formatVersionTimestamp } from "../src/lib/appVersion.ts";
+
+const viteConfigSource = readFileSync(new URL("../vite.config.js", import.meta.url), "utf8");
 
 assert.equal(candidateLabel("quality_stable"), "Quality stable");
 assert.equal(candidateLabel("cycle_time"), "Cycle time");
@@ -79,6 +82,15 @@ assert.doesNotMatch(appSource, /const executeSimulation/);
 assert.match(hookSource, /executeSimulation/);
 assert.match(appSource, /xl:grid-cols-\[280px_minmax\(0,1fr\)_360px\]/);
 assert.match(appSource, /SidePanelTabs/);
+// import 줄에도 "appVersion" 문자열이 들어 있으므로, import만 검사하면 <span>을
+// 지워도 통과한다. 실제 렌더 지점({appVersion})과 스타일 클래스를 직접 검사한다.
+assert.match(appSource, /\{appVersion\}/);
+assert.match(appSource, /font-mono text-\[11px\] text-slate-400/);
+// define 블록이 지워지거나 주석 처리되면 빌드와 테스트는 모두 통과하지만 번들은
+// new Date()로 대체돼 헤더가 페이지를 연 시각으로 새로고침마다 바뀐다. 실제 객체
+// 키로 살아있는지 확인해야 하므로, 줄 시작에 공백만 두고 오는 경우만 인정한다
+// (주석 처리된 "//   __APP_BUILD_ISO__: ..."는 걸러낸다).
+assert.match(viteConfigSource, /^\s*__APP_BUILD_ISO__\s*:/m);
 assert.match(appSource, /Right control rail/);
 // 페이지 전체가 스크롤되지 않아야 한다.
 assert.match(appSource, /h-screen/);
@@ -158,5 +170,13 @@ assert.equal(sidePanelTabs({ importPanel: "IMPORT", excludedCount: 0 })[1].badge
 
 // 입력 탭은 ImportPanel이 항상 있으므로 비활성이 되지 않는다.
 assert.equal(sidePanelTabs({ importPanel: "IMPORT" })[0].disabled, false);
+
+// getMonth()는 0부터 시작한다. 8월은 month=7이다.
+assert.equal(formatVersionTimestamp(new Date(2026, 7, 2, 14, 30, 12)), "20260802_143012");
+// 한 자리 수는 모두 zero-padding한다.
+assert.equal(formatVersionTimestamp(new Date(2026, 0, 5, 9, 8, 7)), "20260105_090807");
+// 자정과 연말 경계.
+assert.equal(formatVersionTimestamp(new Date(2026, 11, 31, 0, 0, 0)), "20261231_000000");
+assert.equal(formatVersionTimestamp(new Date(2026, 11, 31, 23, 59, 59)), "20261231_235959");
 
 console.log("frontend format, refactor boundaries, live simulation, and layout checks passed");

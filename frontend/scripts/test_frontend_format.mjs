@@ -80,7 +80,10 @@ assert.doesNotMatch(appSource, /const executeSimulation/);
 assert.match(hookSource, /executeSimulation/);
 assert.match(appSource, /xl:grid-cols-\[280px_minmax\(0,1fr\)_360px\]/);
 assert.match(appSource, /SidePanelTabs/);
-assert.match(appSource, /appVersion/);
+// import 줄에도 "appVersion" 문자열이 들어 있으므로, import만 검사하면 <span>을
+// 지워도 통과한다. 실제 렌더 지점({appVersion})과 스타일 클래스를 직접 검사한다.
+assert.match(appSource, /\{appVersion\}/);
+assert.match(appSource, /font-mono text-\[11px\] text-slate-400/);
 assert.match(appSource, /Right control rail/);
 // 페이지 전체가 스크롤되지 않아야 한다.
 assert.match(appSource, /h-screen/);
